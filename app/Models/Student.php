@@ -32,6 +32,7 @@ class Student extends Model
         // Kindergarten Information
         'class_name',
         'age_category',
+        'package_id',
 
         // Primary Guardian Information
         'guardian_name',
@@ -72,9 +73,7 @@ class Student extends Model
         'medical_notes',
     ];
 
-    /**
-     * Relationship with Attendance records
-     */
+    // Attendance records
     public function attendances()
     {
         return $this->hasMany(
@@ -84,18 +83,26 @@ class Student extends Model
         );
     }
 
-    /**
-     * Relationship with Parent records
-     */
+    // Parent accounts linked to this student
     public function parents()
     {
         return $this->belongsToMany(
             ParentsModel::class,
-            'parent_student', // Pivot table
-            'student_id',     // Foreign key on parent_student
-            'parent_id',      // Foreign key on parents
-            'student_id',     // Local key on students
-            'parent_id'       // Related key on parents
+            'parent_student',
+            'student_id',
+            'parent_id',
+            'student_id',
+            'parent_id'
+        );
+    }
+
+    // Package assigned to this student
+    public function package()
+    {
+        return $this->belongsTo(
+            Package::class,
+            'package_id',
+            'package_id'
         );
     }
 }

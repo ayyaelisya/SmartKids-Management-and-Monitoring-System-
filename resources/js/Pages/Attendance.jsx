@@ -45,7 +45,7 @@ export default function AdminAttendance({ auth, students = [], selectedDate = ''
                 {/* 1. HEADER SECTION */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
                     <div>
-                        <h1 className="text-2xl sm:text-3xl font-extrabold text-[#2D3142] tracking-tight">
+                        <h1 className="text-2xl sm:text-1xl font-extrabold text-[#2D3142] tracking-tight">
                             Attendance Monitoring
                         </h1>
                         <p className="text-sm font-medium text-[#6B7280] mt-1">

@@ -16,32 +16,29 @@ use Inertia\Response;
 
 class RegisteredUserController extends Controller
 {
-    /**
-     * Paparkan borang pendaftaran ibu bapa.
-     */
+    // Display parent registration form
     public function create(): Response
     {
         return Inertia::render('Auth/Register');
     }
 
-    /**
-     * Kendalikan pendaftaran ibu bapa baharu.
-     */
+    // Register a new parent account
     public function store(Request $request): RedirectResponse
     {
         $request->validate([
-            'full_name'     => 'required|string|max:255',
-            'email'         => 'required|string|lowercase|email|max:255|unique:'.User::class,
-            'phone_number'  => 'required|string|max:20',
-            'relationship'  => 'required|in:Father,Mother,Guardian',
-            'address'       => 'required|string|max:500',
-            'child_name'    => 'required|string|max:255',
-            'child_ic'      => 'required|string|max:20',
-            'password'      => ['required', 'confirmed', Rules\Password::defaults()],
+            'full_name'    => 'required|string|max:255',
+            'email'        => 'required|string|lowercase|email|max:255|unique:users,email',
+            'phone_number' => 'required|string|max:20',
+            'relationship' => 'required|in:Father,Mother,Guardian',
+            'address'      => 'required|string|max:500',
+            'child_name'   => 'required|string|max:255',
+            'child_ic'     => 'required|string|max:20',
+            'password'     => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
         DB::transaction(function () use ($request) {
-            // 1. Cipta pengguna akaun (Role: parent, Status: pending)
+
+            // Create parent user account
             $user = User::create([
                 'full_name'    => $request->full_name,
                 'email'        => $request->email,
@@ -51,9 +48,9 @@ class RegisteredUserController extends Controller
                 'status'       => 'pending',
             ]);
 
-            // 2. Cipta rekod maklumat ibu bapa beserta maklumat anak yang diisi
+            // Save parent and child reference information
             ParentsModel::create([
-                'user_id'      => $user->user_id ?? $user->id,
+                'user_id'      => $user->user_id,
                 'relationship' => $request->relationship,
                 'address'      => $request->address,
                 'child_name'   => $request->child_name,
@@ -63,6 +60,11 @@ class RegisteredUserController extends Controller
             event(new Registered($user));
         });
 
-        return redirect()->route('login')->with('status', 'Pendaftaran berjaya! Akaun anda kini dalam proses semakan dan kelulusan oleh pihak Admin.');
+        return redirect()
+            ->route('login')
+            ->with(
+                'status',
+                'Registration successful! Your account is pending admin approval.'
+            );
     }
 }

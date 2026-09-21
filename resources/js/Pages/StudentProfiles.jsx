@@ -7,7 +7,11 @@ import {
 } from 'lucide-react';
 
 export default function StudentProfiles(props) {
-    const { students = [], filters = {} } = props;
+    const {
+        students = [],
+        packages = [],
+        filters = {}
+    } = props;
 
     // MODAL & TABS MANAGEMENT STATE
     const [isAddEditModalOpen, setIsAddEditModalOpen] = useState(false);
@@ -43,6 +47,7 @@ export default function StudentProfiles(props) {
         // Kindergarten Information
         class_name: '2 Years',
         status: 'Active',
+        package_id: '',
 
         // Primary Guardian Information
         guardian_name: '',
@@ -155,6 +160,9 @@ export default function StudentProfiles(props) {
 
             class_name: student.class_name || '2 Years',
             status: student.status || 'Active',
+            package_id: student.package_id
+            ? String(student.package_id)
+            : '',
 
             guardian_name: student.guardian_name || '',
             guardian_phone: student.guardian_phone || '',
@@ -213,6 +221,16 @@ export default function StudentProfiles(props) {
         }
     };
 
+            // Get package age group based on selected class
+        const selectedAgeGroup =
+            data.class_name === 'Tots Club'
+                ? '10-23 months'
+                : '2-4 years';
+
+        // Only show packages suitable for selected class
+        const availablePackages = packages.filter(
+            (pkg) => pkg.age_group === selectedAgeGroup
+        );
     return (
         <AuthenticatedLayout activeNavId="students">
             <Head title="SKMMS - Student Management" />
@@ -545,34 +563,179 @@ export default function StudentProfiles(props) {
 
                             {/* 2. KINDERGARTEN & PACKAGE DETAILS */}
                             <div>
-                                <h4 className="font-extrabold text-[#6C63A8] uppercase text-[10px] tracking-wider mb-2 pb-1 border-b">2. PACKAGE & SERVICE DETAILS</h4>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                                <h4 className="font-extrabold text-[#6C63A8] uppercase text-[10px] tracking-wider mb-2 pb-1 border-b">
+                                    2. PACKAGE & SERVICE DETAILS
+                                </h4>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+                                    {/* Class Name */}
                                     <div>
-                                        <label className="block font-semibold mb-1 text-[#2D3142]">Class Name *</label>
-                                        <select value={data.class_name} onChange={e => setData('class_name', e.target.value)} className="w-full p-2 text-[11px] rounded-lg border border-[#E2DFEE] focus:outline-hidden focus:border-[#6C63A8]">
+                                        <label className="block font-semibold mb-1 text-[#2D3142]">
+                                            Class Name *
+                                        </label>
+
+                                        <select
+                                            value={data.class_name}
+                                            onChange={(e) => {
+                                                setData((previous) => ({
+                                                    ...previous,
+                                                    class_name: e.target.value,
+                                                    package_id: '',
+                                                }));
+                                            }}
+                                            required
+                                            className="w-full p-2 text-[11px] rounded-lg border border-[#E2DFEE] focus:outline-hidden focus:border-[#6C63A8]"
+                                        >
                                             <option value="Tots Club">Tots Club</option>
                                             <option value="2 Years">2 Years</option>
                                             <option value="3 Years">3 Years</option>
                                             <option value="4 Years">4 Years</option>
                                         </select>
                                     </div>
+
+                                    {/* Package */}
                                     <div>
-                                        <label className="block font-semibold mb-1 text-[#2D3142]">Age Category *</label>
-                                        <select value={data.age_category || ''} onChange={e => setData('age_category', e.target.value)} className="w-full p-2 text-[11px] rounded-lg border border-[#E2DFEE] focus:outline-hidden focus:border-[#6C63A8]">
-                                            <option value="Ages 10 - 23 Months">Ages 10 - 23 Months</option>
-                                            <option value="Ages 2 - 3 Years">Ages 2 - 3 Years</option>
-                                            <option value="Ages 4 - 6 Years">Ages 4 - 6 Years</option>
+                                        <label className="block font-semibold mb-1 text-[#2D3142]">
+                                            Package *
+                                        </label>
+
+                                        <select
+                                            value={data.package_id}
+                                            onChange={(e) =>
+                                                setData('package_id', e.target.value)
+                                            }
+                                            required
+                                            className="w-full p-2 text-[11px] rounded-lg border border-[#E2DFEE] focus:outline-hidden focus:border-[#6C63A8]"
+                                        >
+                                            <option value="">Select Package</option>
+
+                                            {availablePackages.map((pkg) => (
+                                                <option
+                                                    key={pkg.package_id}
+                                                    value={pkg.package_id}
+                                                >
+                                                    {pkg.package_name} — RM
+                                                    {Number(pkg.monthly_fee).toFixed(2)}
+                                                    /month
+                                                </option>
+                                            ))}
                                         </select>
-                                    </div>
-                                    <div>
-                                        <label className="block font-semibold mb-1 text-[#2D3142]">Package Selection *</label>
-                                        <select value={data.selected_service} onChange={e => setData('selected_service', e.target.value)} className="w-full p-2 text-[11px] rounded-lg border border-[#E2DFEE] focus:outline-hidden focus:border-[#6C63A8]">
-                                            <option value="Half Day">Half Day (RM350)</option>
-                                            <option value="Full Day">Full Day (RM450)</option>
-                                            <option value="Plus Package">Plus Package (RM500)</option>
-                                        </select>
+
+                                        {errors.package_id && (
+                                            <p className="text-red-500 text-[10px] mt-1">
+                                                {errors.package_id}
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
+
+                                {/* Selected Package Information */}
+                                {data.package_id && (() => {
+                                    const selectedPackage = packages.find(
+                                        (pkg) =>
+                                            String(pkg.package_id) ===
+                                            String(data.package_id)
+                                    );
+
+                                    if (!selectedPackage) {
+                                        return null;
+                                    }
+
+                                    const formatTime = (time) => {
+                                        if (!time) return '-';
+
+                                        const [hour, minute] = time.split(':');
+                                        const date = new Date();
+
+                                        date.setHours(
+                                            Number(hour),
+                                            Number(minute)
+                                        );
+
+                                        return date.toLocaleTimeString(
+                                            'en-MY',
+                                            {
+                                                hour: 'numeric',
+                                                minute: '2-digit',
+                                                hour12: true,
+                                            }
+                                        );
+                                    };
+
+                                    return (
+                                        <div className="mt-3 p-4 rounded-xl bg-[#F7F6FC] border border-[#E2DFEE]">
+                                            <div className="flex items-center justify-between gap-3 mb-3">
+                                                <div>
+                                                    <p className="text-[10px] text-[#6B7280] font-bold uppercase">
+                                                        Selected Package
+                                                    </p>
+
+                                                    <p className="text-sm font-black text-[#6C63A8]">
+                                                        {selectedPackage.package_name}
+                                                    </p>
+                                                </div>
+
+                                                <div className="text-right">
+                                                    <p className="text-[10px] text-[#6B7280]">
+                                                        Monthly Fee
+                                                    </p>
+
+                                                    <p className="text-sm font-black text-[#2D3142]">
+                                                        RM
+                                                        {Number(
+                                                            selectedPackage.monthly_fee
+                                                        ).toFixed(2)}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                                <div className="bg-white rounded-lg p-2.5 border border-[#E2DFEE]">
+                                                    <p className="text-[9px] uppercase font-bold text-[#6B7280]">
+                                                        Age Group
+                                                    </p>
+
+                                                    <p className="font-bold text-[#2D3142] mt-0.5">
+                                                        {selectedPackage.age_group}
+                                                    </p>
+                                                </div>
+
+                                                <div className="bg-white rounded-lg p-2.5 border border-[#E2DFEE]">
+                                                    <p className="text-[9px] uppercase font-bold text-[#6B7280]">
+                                                        Session
+                                                    </p>
+
+                                                    <p className="font-bold text-[#2D3142] mt-0.5">
+                                                        {formatTime(
+                                                            selectedPackage.start_time
+                                                        )}
+                                                        {' - '}
+                                                        {formatTime(
+                                                            selectedPackage.end_time
+                                                        )}
+                                                    </p>
+                                                </div>
+
+                                                <div className="bg-white rounded-lg p-2.5 border border-[#E2DFEE]">
+                                                    <p className="text-[9px] uppercase font-bold text-[#6B7280]">
+                                                        Late After
+                                                    </p>
+
+                                                    <p className="font-bold text-[#2D3142] mt-0.5">
+                                                        {formatTime(
+                                                            selectedPackage.end_time
+                                                        )}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <p className="text-[10px] text-[#6B7280] mt-3">
+                                                {selectedPackage.description}
+                                            </p>
+                                        </div>
+                                    );
+                                })()}
                             </div>
 
                             {/* 3. FATHER & GUARDIAN */}

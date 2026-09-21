@@ -22,8 +22,12 @@ export default function AdminFees({
 
     // Search and Filter States
     const [search, setSearch] = useState('');
-    const [monthFilter, setMonthFilter] = useState('August');
-    const [yearFilter, setYearFilter] = useState('2026');
+    const currentDate = new Date();
+    const currentMonth = currentDate.toLocaleString('en-US', { month: 'long' });
+    const currentYear = String(currentDate.getFullYear());
+
+    const [monthFilter, setMonthFilter] = useState(currentMonth);
+    const [yearFilter, setYearFilter] = useState(currentYear);
     const [classFilter, setClassFilter] = useState('All');
     const [statusFilter, setStatusFilter] = useState('All');
     const [feeTypeFilter, setFeeTypeFilter] = useState('All');
@@ -31,6 +35,19 @@ export default function AdminFees({
     // Modals & UI States
     const [activeTab, setActiveTab] = useState('payments'); // 'payments' | 'structure' | 'latepickup'
     const [showRecordModal, setShowRecordModal] = useState(false);
+    const [showGenerateModal, setShowGenerateModal] = useState(false);
+
+const getCurrentBillingMonth = () => {
+    return new Date().toLocaleString('en-US', {
+        month: 'long',
+        year: 'numeric',
+    });
+};
+
+const [generateForm, setGenerateForm] = useState({
+    billing_month: getCurrentBillingMonth(),
+    due_date: '',
+});
     const [selectedDetail, setSelectedDetail] = useState(null);
     const [toastMessage, setToastMessage] = useState('');
 
@@ -68,24 +85,22 @@ export default function AdminFees({
         return matchSearch && matchStatus && matchClass && matchType;
     });
 
-    const handleRecordSubmit = (e) => {
-        e.preventDefault();
-        router.post('/admin/fees/record-payment', recordForm, {
-            onSuccess: () => {
-                setShowRecordModal(false);
-                setRecordForm({
-                    student_id: '',
-                    fee_type: 'Monthly Fee',
-                    amount: '',
-                    payment_date: new Date().toISOString().split('T')[0],
-                    payment_method: 'Cash',
-                    reference_no: '',
-                    remarks: ''
-                });
-                triggerToast('Payment recorded successfully.');
-            }
-        });
-    };
+const handleGenerateMonthlyFees = (e) => {
+    e.preventDefault();
+
+    router.post('/admin/fees/generate-monthly', generateForm, {
+        preserveScroll: true,
+
+        onSuccess: () => {
+            setShowGenerateModal(false);
+            triggerToast('Monthly bills generated successfully.');
+        },
+
+        onError: (errors) => {
+            console.error(errors);
+        }
+    });
+};
 
     const handleSendReminder = (feeId, studentName) => {
         router.post(`/admin/fees/${feeId}/send-reminder`, {}, {
@@ -99,14 +114,6 @@ export default function AdminFees({
         router.patch(`/admin/fees/structure/${structureId}/toggle`, {}, {
             onSuccess: () => {
                 triggerToast('Fee structure updated successfully.');
-            }
-        });
-    };
-
-    const handleIncludeLateFee = (latePickupId) => {
-        router.post(`/admin/fees/late-pickup/${latePickupId}/include`, {}, {
-            onSuccess: () => {
-                triggerToast('Late fee included in payment record.');
             }
         });
     };
@@ -128,6 +135,13 @@ export default function AdminFees({
                             className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-all"
                         >
                             {activeTab === 'structure' ? '← Back to Payments' : 'Manage Fee Structure'}
+                        </button>
+                        <button
+                            onClick={() => setShowGenerateModal(true)}
+                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl transition-all shadow-xs flex items-center gap-1.5"
+                        >
+                            <span>📄</span>
+                            Generate Monthly Bills
                         </button>
                         <button
                             onClick={() => setShowRecordModal(true)}
@@ -211,8 +225,9 @@ export default function AdminFees({
                                 onChange={(e) => setYearFilter(e.target.value)}
                                 className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700"
                             >
-                                <option value="2026">2026</option>
-                                <option value="2025">2025</option>
+                                {[currentYear, String(Number(currentYear) - 1), String(Number(currentYear) + 1)].map(y => (
+                                    <option key={y} value={y}>{y}</option>
+                                ))}
                             </select>
                         </div>
                     </div>
@@ -318,6 +333,7 @@ export default function AdminFees({
                                     <option value="Paid">Paid</option>
                                     <option value="Unpaid">Unpaid</option>
                                     <option value="Pending">Pending</option>
+                                    <option value="Partially Paid">Partially Paid</option>
                                     <option value="Overdue">Overdue</option>
                                 </select>
                             </div>
@@ -461,20 +477,15 @@ export default function AdminFees({
                                                 <td className="p-3.5 font-bold text-slate-900">RM {Number(row.fee || 0).toFixed(2)}</td>
                                                 <td className="p-3.5">
                                                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                                        row.status === 'Unpaid' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'
+                                                        row.status === 'Unbilled' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'
                                                     }`}>
                                                         {row.status}
                                                     </span>
                                                 </td>
                                                 <td className="p-3.5 text-right">
-                                                    {row.status === 'Unpaid' && (
-                                                        <button
-                                                            onClick={() => handleIncludeLateFee(row.id)}
-                                                            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-bold"
-                                                        >
-                                                            Include in Payment
-                                                        </button>
-                                                    )}
+                                                    <span className="text-[11px] text-slate-400">
+                                                        {row.status === 'Unbilled' ? 'Included during monthly billing' : 'Added to bill'}
+                                                    </span>
                                                 </td>
                                             </tr>
                                         ))
@@ -645,7 +656,154 @@ export default function AdminFees({
                     </div>
                 </div>
             )}
+{/* GENERATE MONTHLY BILLS MODAL */}
+{showGenerateModal && (
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+        <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-md w-full space-y-4 shadow-xl">
 
+            <div className="flex justify-between items-center border-b pb-3">
+                <div>
+                    <h3 className="text-base font-bold text-slate-900">
+                        Generate Monthly Bills
+                    </h3>
+
+                    <p className="text-[11px] text-slate-500 mt-1">
+                        Monthly fees are automatically calculated
+                        based on each student's package.
+                    </p>
+                </div>
+
+                <button
+                    onClick={() => setShowGenerateModal(false)}
+                    className="text-slate-400 font-bold"
+                >
+                    ✕
+                </button>
+            </div>
+
+            <form
+                onSubmit={handleGenerateMonthlyFees}
+                className="space-y-4 text-xs"
+            >
+                {/* Billing Month */}
+                <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                        Billing Month
+                    </label>
+
+                    <input
+                        type="month"
+                        required
+                        value={
+                            (() => {
+                                const [monthName, year] =
+                                    generateForm.billing_month.split(' ');
+
+                                const months = [
+                                    'January',
+                                    'February',
+                                    'March',
+                                    'April',
+                                    'May',
+                                    'June',
+                                    'July',
+                                    'August',
+                                    'September',
+                                    'October',
+                                    'November',
+                                    'December'
+                                ];
+
+                                const monthNumber =
+                                    String(
+                                        months.indexOf(monthName) + 1
+                                    ).padStart(2, '0');
+
+                                return `${year}-${monthNumber}`;
+                            })()
+                        }
+                        onChange={(e) => {
+                            const [year, month] =
+                                e.target.value.split('-');
+
+                            const months = [
+                                'January',
+                                'February',
+                                'March',
+                                'April',
+                                'May',
+                                'June',
+                                'July',
+                                'August',
+                                'September',
+                                'October',
+                                'November',
+                                'December'
+                            ];
+
+                            setGenerateForm({
+                                ...generateForm,
+                                billing_month:
+                                    `${months[Number(month) - 1]} ${year}`
+                            });
+                        }}
+                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl"
+                    />
+                </div>
+
+                {/* Due Date */}
+                <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                        Payment Due Date
+                    </label>
+
+                    <input
+                        type="date"
+                        required
+                        value={generateForm.due_date}
+                        onChange={(e) =>
+                            setGenerateForm({
+                                ...generateForm,
+                                due_date: e.target.value
+                            })
+                        }
+                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl"
+                    />
+                </div>
+
+                {/* Information */}
+                <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3">
+                    <p className="font-bold text-indigo-800 mb-1">
+                        Automatic Calculation
+                    </p>
+
+                    <p className="text-[11px] text-indigo-700 leading-relaxed">
+                        The system will use each student's assigned
+                        package monthly fee and include any unbilled
+                        late pickup charges.
+                    </p>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                    <button
+                        type="button"
+                        onClick={() => setShowGenerateModal(false)}
+                        className="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl"
+                    >
+                        Cancel
+                    </button>
+
+                    <button
+                        type="submit"
+                        className="w-1/2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl"
+                    >
+                        Generate Bills
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+)}
             {/* RECORD PAYMENT MODAL */}
             {showRecordModal && (
                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">

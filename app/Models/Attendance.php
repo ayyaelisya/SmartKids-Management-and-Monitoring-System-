@@ -18,18 +18,33 @@ class Attendance extends Model
         'recorded_by',
     ];
 
+    // Student attendance owner
     public function student(): BelongsTo
     {
-        return $this->belongsTo(Student::class);
+        return $this->belongsTo(
+            Student::class,
+            'student_id',
+            'student_id'
+        );
     }
 
+    // User who recorded attendance
     public function recorder(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'recorded_by');
+        return $this->belongsTo(
+            User::class,
+            'recorded_by',
+            'user_id'
+        );
     }
 
+    // Late pickup record
     public function latePickup(): HasOne
     {
-        return $this->hasOne(\App\Models\LatePickup::class);
+        return $this->hasOne(
+            LatePickup::class,
+            'attendance_id',
+            'id'
+        );
     }
 }

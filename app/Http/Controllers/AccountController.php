@@ -10,19 +10,30 @@ use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Inertia\Inertia;
 
 class AccountController extends Controller
 {
+    // Display all accounts
     public function index()
     {
-        $accounts = User::with(['teacher', 'parent.students', 'admin'])
+        $accounts = User::with([
+            'teacher',
+            'parent.students',
+            'admin'
+        ])
             ->latest()
             ->get();
 
-        $students = Student::select('student_id', 'full_name', 'ic_number')
-            ->orderBy('full_name', 'asc')
+        // Get students for parent linking
+        $students = Student::select(
+            'student_id',
+            'full_name',
+            'ic_number',
+            'date_of_birth',
+            'class_name'
+        )
+            ->orderBy('full_name')
             ->get();
 
         return Inertia::render('StaffAccounts', [
@@ -31,21 +42,24 @@ class AccountController extends Controller
         ]);
     }
 
+    // Create account by admin
     public function store(Request $request)
     {
         $validated = $request->validate([
             'full_name'     => 'required|string|max:255',
-            'email'        => 'required|string|email|max:255|unique:users,email',
+            'email'         => 'required|string|email|max:255|unique:users,email',
             'phone_number'  => 'nullable|string|max:20',
             'password'      => 'required|string|min:6',
             'role'          => 'required|in:admin,teacher,parent',
             'relationship'  => 'nullable|required_if:role,parent|in:father,mother,guardian',
             'student_id'    => 'nullable|exists:students,student_id',
             'qualification' => 'nullable|string|max:255',
-            'address'       => 'nullable|string',
+            'address'       => 'nullable|string|max:500',
         ]);
 
         DB::transaction(function () use ($validated) {
+
+            // Create user account
             $user = User::create([
                 'full_name'    => $validated['full_name'],
                 'email'        => $validated['email'],
@@ -55,8 +69,9 @@ class AccountController extends Controller
                 'status'       => 'active',
             ]);
 
-            $userId = $user->id ?? $user->user_id;
+            $userId = $user->user_id;
 
+            // Create teacher profile
             if ($validated['role'] === 'teacher') {
                 Teacher::create([
                     'user_id'       => $userId,
@@ -66,18 +81,26 @@ class AccountController extends Controller
                     'status'        => 'active',
                     'hire_date'     => now(),
                 ]);
-            } elseif ($validated['role'] === 'parent') {
+            }
+
+            // Create parent profile
+            if ($validated['role'] === 'parent') {
                 $parent = ParentsModel::create([
                     'user_id'      => $userId,
-                    'relationship' => $validated['relationship'] ?? 'guardian',
+                    'relationship' => $validated['relationship'],
                     'address'      => $validated['address'] ?? null,
                 ]);
 
-                // Link student if provided during account creation
+                // Link student if selected by admin
                 if (!empty($validated['student_id'])) {
-                    $this->attachStudentToParent($parent, $validated['student_id']);
+                    $parent->students()->syncWithoutDetaching([
+                        $validated['student_id']
+                    ]);
                 }
-            } elseif ($validated['role'] === 'admin') {
+            }
+
+            // Create admin profile
+            if ($validated['role'] === 'admin') {
                 Admin::create([
                     'user_id'   => $userId,
                     'full_name' => $validated['full_name'],
@@ -85,65 +108,84 @@ class AccountController extends Controller
             }
         });
 
-        return redirect()->back()->with('success', 'Account created successfully!');
+        return redirect()
+            ->back()
+            ->with('success', 'Account created successfully.');
     }
 
-    /**
-     * Link an existing student to a parent account.
-     */
+    // Link student to existing parent
     public function linkStudent(Request $request)
     {
         $validated = $request->validate([
-            'parent_id'  => 'required',
+            'parent_id'  => 'required|exists:parents,parent_id',
             'student_id' => 'required|exists:students,student_id',
         ]);
 
-        // Look up ParentsModel record by primary key or user_id
-        $parent = ParentsModel::find($validated['parent_id'])
-            ?? ParentsModel::where('parent_id', $validated['parent_id'])->first()
-            ?? ParentsModel::where('user_id', $validated['parent_id'])->first();
+        $parent = ParentsModel::findOrFail($validated['parent_id']);
 
-        // Auto-create ParentsModel record if User exists with 'parent' role but missing profile row
-        if (!$parent) {
-            $user = User::find($validated['parent_id'])
-                ?? User::where('user_id', $validated['parent_id'])->first();
+        // Link student without removing existing links
+        $parent->students()->syncWithoutDetaching([
+            $validated['student_id']
+        ]);
 
-            if ($user && $user->role === 'parent') {
-                $parent = ParentsModel::create([
-                    'user_id'      => $user->id ?? $user->user_id,
-                    'relationship' => 'guardian',
-                ]);
-            }
-        }
-
-        if (!$parent) {
-            return redirect()->back()->withErrors([
-                'parent_id' => 'Parent profile record not found for this account.'
-            ]);
-        }
-
-        $this->attachStudentToParent($parent, $validated['student_id']);
-
-        return redirect()->back()->with('success', 'Student linked successfully!');
+        return redirect()
+            ->back()
+            ->with('success', 'Student linked successfully.');
     }
 
-    /**
-     * Helper method to attach student safely according to relationship type (BelongsToMany vs HasMany).
-     */
-    private function attachStudentToParent(ParentsModel $parent, int|string $studentId): void
+    // Approve parent and link child
+    public function approveParent(Request $request)
     {
-        if (method_exists($parent, 'students')) {
-            $relation = $parent->students();
+        $validated = $request->validate([
+            'parent_id'  => 'required|exists:parents,parent_id',
+            'student_id' => 'required|exists:students,student_id',
+        ]);
 
-            // If relation is Many-to-Many (pivot table)
-            if ($relation instanceof BelongsToMany) {
-                $parent->students()->syncWithoutDetaching([$studentId]);
-                return;
-            }
-        }
+        DB::transaction(function () use ($validated) {
 
-        // Fallback for One-to-Many (direct foreign key on students table)
-        $parentId = $parent->id ?? $parent->parent_id;
-        Student::where('student_id', $studentId)->update(['parent_id' => $parentId]);
+            $parent = ParentsModel::findOrFail(
+                $validated['parent_id']
+            );
+
+            // Link selected child
+            $parent->students()->syncWithoutDetaching([
+                $validated['student_id']
+            ]);
+
+            // Activate parent account
+            User::where('user_id', $parent->user_id)
+                ->update([
+                    'status' => 'active',
+                ]);
+        });
+
+        return redirect()
+            ->back()
+            ->with(
+                'success',
+                'Parent approved and student linked successfully.'
+            );
+    }
+
+    // Reject parent registration
+    public function rejectParent(Request $request)
+    {
+        $validated = $request->validate([
+            'parent_id' => 'required|exists:parents,parent_id',
+        ]);
+
+        $parent = ParentsModel::findOrFail(
+            $validated['parent_id']
+        );
+
+        // Change account status to rejected
+        User::where('user_id', $parent->user_id)
+            ->update([
+                'status' => 'rejected',
+            ]);
+
+        return redirect()
+            ->back()
+            ->with('success', 'Parent registration rejected.');
     }
 }

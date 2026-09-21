@@ -8,9 +8,11 @@ export default function StaffAccounts({ accounts = [], students = [] }) {
     // =========================
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
+    const [isViewModalOpen, setIsViewModalOpen] = useState(false);
 
     const [selectedParent, setSelectedParent] = useState(null);
-    const [selectedStudentIds, setSelectedStudentIds] = useState([]);
+    const [selectedStudentId, setSelectedStudentId] = useState('');
+    const [selectedAccount, setSelectedAccount] = useState(null);
 
     const [approvalProcessing, setApprovalProcessing] = useState(false);
     const [approvalError, setApprovalError] = useState('');
@@ -104,51 +106,52 @@ export default function StaffAccounts({ accounts = [], students = [] }) {
         });
     };
 
-    // =========================
-    // OPEN APPROVAL MODAL
-    // =========================
+    // Open parent approval modal
     const openApprovalModal = (account) => {
         setSelectedParent(account);
-        setSelectedStudentIds([]);
         setApprovalError('');
+
+        // Auto-match the requested child using IC number
+        const requestedChildIc = String(account.parent?.child_ic || '').replace(/\D/g, '');
+        const matchedStudent = students.find((student) =>
+            String(student.ic_number || '').replace(/\D/g, '') === requestedChildIc && requestedChildIc !== ''
+        );
+
+        setSelectedStudentId(matchedStudent ? String(getStudentId(matchedStudent)) : '');
         setIsApprovalModalOpen(true);
     };
 
-    // =========================
-    // CLOSE APPROVAL MODAL
-    // =========================
+    // Close parent approval modal
     const closeApprovalModal = () => {
         if (approvalProcessing) return;
 
         setIsApprovalModalOpen(false);
         setSelectedParent(null);
-        setSelectedStudentIds([]);
+        setSelectedStudentId('');
         setApprovalError('');
     };
 
-    // =========================
-    // CHECKBOX STUDENT SELECTION
-    // =========================
-    const handleStudentSelection = (studentId) => {
-        setSelectedStudentIds((previous) => {
-            if (previous.includes(studentId)) {
-                return previous.filter((id) => id !== studentId);
-            }
-            return [...previous, studentId];
-        });
+    // Open account details modal
+    const openViewModal = (account) => {
+        setSelectedAccount(account);
+        setIsViewModalOpen(true);
     };
 
-    // =========================
-    // APPROVE & LINK
-    // =========================
+    // Close account details modal
+    const closeViewModal = () => {
+        setIsViewModalOpen(false);
+        setSelectedAccount(null);
+    };
+
+    // Approve parent and link selected child
     const handleApproveAndLink = () => {
         if (!selectedParent) {
             setApprovalError('Parent information could not be identified.');
             return;
         }
 
-        if (selectedStudentIds.length === 0) {
-            setApprovalError('Please select at least one student.');
+        if (!selectedStudentId) {
+            setApprovalError('Please select a student to link.');
             return;
         }
 
@@ -166,19 +169,17 @@ export default function StaffAccounts({ accounts = [], students = [] }) {
             '/staff-accounts/approve-parent',
             {
                 parent_id: parentId,
-                student_ids: selectedStudentIds,
+                student_id: selectedStudentId,
             },
             {
                 preserveScroll: true,
                 onSuccess: () => {
-                    setApprovalProcessing(false);
                     setIsApprovalModalOpen(false);
                     setSelectedParent(null);
-                    setSelectedStudentIds([]);
-                    alert('Parent registration approved and student(s) linked successfully!');
+                    setSelectedStudentId('');
+                    alert('Parent approved and child linked successfully!');
                 },
                 onError: (errors) => {
-                    setApprovalProcessing(false);
                     const firstError = Object.values(errors)[0];
                     setApprovalError(firstError || 'Failed to approve parent registration.');
                 },
@@ -189,9 +190,7 @@ export default function StaffAccounts({ accounts = [], students = [] }) {
         );
     };
 
-    // =========================
-    // REJECT PARENT
-    // =========================
+    // Reject parent registration
     const handleRejectParent = () => {
         if (!selectedParent) return;
 
@@ -202,9 +201,7 @@ export default function StaffAccounts({ accounts = [], students = [] }) {
             return;
         }
 
-        if (!window.confirm('Are you sure you want to reject this parent registration?')) {
-            return;
-        }
+        if (!window.confirm('Are you sure you want to reject this parent registration?')) return;
 
         setApprovalProcessing(true);
         setApprovalError('');
@@ -215,14 +212,12 @@ export default function StaffAccounts({ accounts = [], students = [] }) {
             {
                 preserveScroll: true,
                 onSuccess: () => {
-                    setApprovalProcessing(false);
                     setIsApprovalModalOpen(false);
                     setSelectedParent(null);
-                    setSelectedStudentIds([]);
+                    setSelectedStudentId('');
                     alert('Parent registration rejected successfully.');
                 },
                 onError: (errors) => {
-                    setApprovalProcessing(false);
                     const firstError = Object.values(errors)[0];
                     setApprovalError(firstError || 'Failed to reject parent registration.');
                 },
@@ -242,6 +237,8 @@ export default function StaffAccounts({ accounts = [], students = [] }) {
 
             if (isApprovalModalOpen) {
                 closeApprovalModal();
+            } else if (isViewModalOpen) {
+                closeViewModal();
             } else if (isModalOpen) {
                 closeModal();
             }
@@ -249,7 +246,7 @@ export default function StaffAccounts({ accounts = [], students = [] }) {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isModalOpen, isApprovalModalOpen, closeModal]);
+    }, [isModalOpen, isApprovalModalOpen, isViewModalOpen, closeModal]);
 
     // =========================
     // FILTER ACCOUNTS
@@ -428,11 +425,12 @@ export default function StaffAccounts({ accounts = [], students = [] }) {
                                                             onClick={() => openApprovalModal(account)}
                                                             className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-xs cursor-pointer active:scale-95"
                                                         >
-                                                            Approve
+                                                            Approve & Link
                                                         </button>
                                                     ) : (
                                                         <button
                                                             type="button"
+                                                            onClick={() => openViewModal(account)}
                                                             className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer active:scale-95"
                                                         >
                                                             View
@@ -636,189 +634,129 @@ export default function StaffAccounts({ accounts = [], students = [] }) {
 
             {/* APPROVE PARENT MODAL */}
             {isApprovalModalOpen && selectedParent && (
-                <div
-                    className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50"
-                    onClick={closeApprovalModal}
-                >
-                    <div
-                        className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-100 overflow-hidden"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div className="px-6 sm:px-8 pt-6 pb-4">
-                            <div className="flex items-start justify-between gap-4">
-                                <div>
-                                    <h2 className="text-xl font-extrabold text-slate-900">
-                                        Review & Approve Parent Registration
-                                    </h2>
-                                    <p className="text-xs text-slate-500 font-medium mt-1">
-                                        Verify identity and explicitly link to student(s)
-                                    </p>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={closeApprovalModal}
-                                    disabled={approvalProcessing}
-                                    className="w-9 h-9 flex items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-900 text-2xl transition-all disabled:opacity-50 cursor-pointer"
-                                >
-                                    ×
-                                </button>
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50" onClick={closeApprovalModal}>
+                    <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-100 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                        <div className="px-6 sm:px-8 pt-6 pb-4 flex items-start justify-between gap-4 border-b border-slate-100">
+                            <div>
+                                <h2 className="text-xl font-extrabold text-slate-900">Review Parent Registration</h2>
+                                <p className="text-xs text-slate-500 font-medium mt-1">Verify the requested child before approving the account.</p>
                             </div>
-                            <div className="border-b border-slate-100 mt-5" />
+                            <button type="button" onClick={closeApprovalModal} disabled={approvalProcessing} className="text-slate-400 hover:text-slate-900 text-2xl font-bold cursor-pointer disabled:opacity-50">×</button>
                         </div>
 
-                        <div className="px-6 sm:px-8 pb-6 space-y-5 max-h-[65vh] overflow-y-auto">
-                            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-5">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-xs font-medium">
-                                    <div>
-                                        <span className="text-slate-400">Parent Name:</span>{' '}
-                                        <span className="text-slate-900 font-bold">{selectedParent.full_name}</span>
-                                    </div>
-                                    <div>
-                                        <span className="text-slate-400">NRIC:</span>{' '}
-                                        <span className="text-slate-900 font-bold">
-                                            {selectedParent.nric ||
-                                                selectedParent.ic_number ||
-                                                selectedParent.parent?.nric ||
-                                                selectedParent.parent?.ic_number ||
-                                                'Not provided'}
-                                        </span>
-                                    </div>
-                                    <div>
-                                        <span className="text-slate-400">Phone:</span>{' '}
-                                        <span className="text-slate-900 font-bold">
-                                            {selectedParent.phone_number || 'Not provided'}
-                                        </span>
-                                    </div>
-                                    <div>
-                                        <span className="text-slate-400">Email:</span>{' '}
-                                        <span className="text-slate-900 font-bold break-all">{selectedParent.email}</span>
-                                    </div>
-                                    <div>
-                                        <span className="text-slate-400">Relationship:</span>{' '}
-                                        <span className="text-slate-900 font-bold capitalize">
-                                            {selectedParent.parent?.relationship || 'Not provided'}
-                                        </span>
-                                    </div>
+                        <div className="px-6 sm:px-8 py-6 space-y-5 max-h-[65vh] overflow-y-auto">
+                            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5">
+                                <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-3">Parent Information</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                    <div><span className="text-slate-400">Name:</span> <span className="font-bold text-slate-900">{selectedParent.full_name || '-'}</span></div>
+                                    <div><span className="text-slate-400">Relationship:</span> <span className="font-bold text-slate-900 capitalize">{selectedParent.parent?.relationship || '-'}</span></div>
+                                    <div><span className="text-slate-400">Email:</span> <span className="font-bold text-slate-900">{selectedParent.email || '-'}</span></div>
+                                    <div><span className="text-slate-400">Phone:</span> <span className="font-bold text-slate-900">{selectedParent.phone_number || '-'}</span></div>
+                                </div>
+                            </div>
+
+                            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+                                <p className="text-[10px] font-extrabold text-amber-700 uppercase tracking-wider mb-3">Child Requested by Parent</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                    <div><span className="text-amber-700/70">Child Name:</span> <span className="font-bold text-slate-900">{selectedParent.parent?.child_name || 'Not provided'}</span></div>
+                                    <div><span className="text-amber-700/70">Child IC:</span> <span className="font-bold text-slate-900">{selectedParent.parent?.child_ic || 'Not provided'}</span></div>
                                 </div>
                             </div>
 
                             <div>
-                                <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                                    Select Student(s) to Link to this Parent:
-                                </h3>
-                                <p className="text-[11px] text-slate-400 font-normal mt-0.5">
-                                    Select one or more children that this parent is authorised to access.
-                                </p>
+                                <label htmlFor="approval_student" className="block text-[10px] font-extrabold text-slate-600 uppercase tracking-wider mb-2">Select Student to Link</label>
+                                <select
+                                    id="approval_student"
+                                    value={selectedStudentId}
+                                    onChange={(e) => { setSelectedStudentId(e.target.value); setApprovalError(''); }}
+                                    disabled={approvalProcessing}
+                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-900 focus:outline-hidden focus:border-[#6C63FF] disabled:opacity-50"
+                                >
+                                    <option value="">Select a student...</option>
+                                    {students.map((student) => (
+                                        <option key={getStudentId(student)} value={getStudentId(student)}>
+                                            {student.full_name} — IC: {student.ic_number || 'Not available'}{student.class_name ? ` — ${student.class_name}` : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                                <p className="text-[11px] text-slate-400 mt-2">If the Child IC matches a student record, the system selects that student automatically.</p>
                             </div>
 
-                            <div className="border border-slate-200/80 rounded-2xl overflow-hidden bg-white">
-                                <div className="max-h-64 overflow-y-auto p-2 space-y-2">
-                                    {students.length > 0 ? (
-                                        students.map((student) => {
-                                            const studentId = getStudentId(student);
-                                            const isSelected = selectedStudentIds.includes(studentId);
+                            {approvalError && <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl px-4 py-3 text-xs font-semibold">{approvalError}</div>}
+                        </div>
 
-                                            return (
-                                                <label
-                                                    key={studentId}
-                                                    className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
-                                                        isSelected
-                                                            ? 'border-emerald-500 bg-emerald-50/50'
-                                                            : 'border-slate-100 bg-slate-50/50 hover:bg-slate-100/60'
-                                                    }`}
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={isSelected}
-                                                        onChange={() => handleStudentSelection(studentId)}
-                                                        disabled={approvalProcessing}
-                                                        className="w-4 h-4 accent-emerald-600"
-                                                    />
-                                                    <div className="w-11 h-11 rounded-full overflow-hidden bg-slate-200 border border-slate-300 shrink-0">
-                                                        {student.profile_image || student.photo ? (
-                                                            <img
-                                                                src={student.profile_image || student.photo}
-                                                                alt={student.full_name || 'Student'}
-                                                                className="w-full h-full object-cover"
-                                                            />
-                                                        ) : (
-                                                            <div className="w-full h-full flex items-center justify-center text-lg">
-                                                                🧒
-                                                            </div>
-                                                        )}
-                                                    </div>
+                        <div className="border-t border-slate-100 px-6 sm:px-8 py-4 flex flex-col sm:flex-row items-center gap-3">
+                            <button type="button" onClick={handleRejectParent} disabled={approvalProcessing} className="text-rose-600 hover:text-rose-700 font-bold text-xs uppercase tracking-wider disabled:opacity-50 cursor-pointer">Reject Registration</button>
+                            <div className="flex items-center gap-3 sm:ml-auto">
+                                <button type="button" onClick={closeApprovalModal} disabled={approvalProcessing} className="px-5 py-2.5 text-slate-600 hover:bg-slate-100 font-bold rounded-xl text-xs uppercase tracking-wider disabled:opacity-50 cursor-pointer">Cancel</button>
+                                <button type="button" onClick={handleApproveAndLink} disabled={!selectedStudentId || approvalProcessing} className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs uppercase tracking-wider shadow-xs disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
+                                    {approvalProcessing ? 'Processing...' : 'Approve & Link'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
-                                                    <div className="min-w-0 flex-1">
-                                                        <p className="font-bold text-xs text-slate-900 truncate">
-                                                            {student.full_name}
-                                                        </p>
-                                                        <p className="text-[11px] text-slate-400 font-medium mt-0.5">
-                                                            {studentId}
-                                                            {' • '}
-                                                            {student.age ? `${student.age} years` : 'Age not available'}
-                                                            {' • '}
-                                                            {student.class_name ||
-                                                                student.class?.name ||
-                                                                student.classroom?.name ||
-                                                                'Class not assigned'}
-                                                        </p>
-                                                    </div>
+            {/* VIEW ACCOUNT MODAL */}
+            {isViewModalOpen && selectedAccount && (
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50" onClick={closeViewModal}>
+                    <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                        <div className="px-6 sm:px-8 py-5 flex items-start justify-between border-b border-slate-100">
+                            <div>
+                                <h2 className="text-xl font-extrabold text-slate-900">Account Details</h2>
+                                <p className="text-xs text-slate-500 mt-1">View registered account information.</p>
+                            </div>
+                            <button type="button" onClick={closeViewModal} className="text-slate-400 hover:text-slate-900 text-2xl font-bold cursor-pointer">×</button>
+                        </div>
 
-                                                    {isSelected && (
-                                                        <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-bold">
-                                                            ✓
-                                                        </div>
-                                                    )}
-                                                </label>
-                                            );
-                                        })
-                                    ) : (
-                                        <div className="py-10 text-center text-xs text-slate-400 font-medium">
-                                            No students available to link.
-                                        </div>
-                                    )}
+                        <div className="px-6 sm:px-8 py-6 space-y-4 text-xs">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 border border-slate-200 rounded-2xl p-5">
+                                <div><p className="text-slate-400 mb-1">Full Name</p><p className="font-bold text-slate-900">{selectedAccount.full_name || '-'}</p></div>
+                                <div><p className="text-slate-400 mb-1">Role</p><p className="font-bold text-slate-900 capitalize">{selectedAccount.role || '-'}</p></div>
+                                <div><p className="text-slate-400 mb-1">Email</p><p className="font-bold text-slate-900 break-all">{selectedAccount.email || '-'}</p></div>
+                                <div><p className="text-slate-400 mb-1">Phone</p><p className="font-bold text-slate-900">{selectedAccount.phone_number || '-'}</p></div>
+                                <div><p className="text-slate-400 mb-1">Status</p><p className="font-bold text-slate-900 capitalize">{getStatus(selectedAccount)}</p></div>
+                            </div>
+
+                            {selectedAccount.role === 'teacher' && (
+                                <div className="border border-slate-200 rounded-2xl p-5">
+                                    <p className="text-slate-400 mb-1">Qualification</p>
+                                    <p className="font-bold text-slate-900">{selectedAccount.teacher?.qualification || 'Not provided'}</p>
                                 </div>
-                            </div>
+                            )}
 
-                            {approvalError && (
-                                <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl px-4 py-3 text-xs font-semibold">
-                                    {approvalError}
+                            {selectedAccount.role === 'parent' && (
+                                <div className="border border-slate-200 rounded-2xl p-5 space-y-3">
+                                    <div><p className="text-slate-400 mb-1">Relationship</p><p className="font-bold text-slate-900 capitalize">{selectedAccount.parent?.relationship || '-'}</p></div>
+                                    <div>
+                                        <p className="text-slate-400 mb-2">Linked Child</p>
+                                        {selectedAccount.parent?.students?.length > 0 ? (
+                                            <div className="space-y-2">
+                                                {selectedAccount.parent.students.map((student) => (
+                                                    <div key={getStudentId(student)} className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+                                                        <p className="font-bold text-slate-900">{student.full_name}</p>
+                                                        <p className="text-[11px] text-slate-500 mt-0.5">IC: {student.ic_number || 'Not available'}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="text-slate-500">No child linked.</p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {selectedAccount.role === 'admin' && (
+                                <div className="border border-slate-200 rounded-2xl p-5">
+                                    <p className="text-slate-400 mb-1">Access</p>
+                                    <p className="font-bold text-slate-900">Full administrator access</p>
                                 </div>
                             )}
                         </div>
 
-                        <div className="border-t border-slate-100 px-6 sm:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-                            <button
-                                type="button"
-                                onClick={handleRejectParent}
-                                disabled={approvalProcessing}
-                                className="text-rose-600 hover:text-rose-700 font-bold text-xs uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer"
-                            >
-                                Reject Registration
-                            </button>
-
-                            <div className="flex items-center gap-3 sm:ml-auto">
-                                <button
-                                    type="button"
-                                    onClick={closeApprovalModal}
-                                    disabled={approvalProcessing}
-                                    className="px-5 py-2.5 text-slate-600 hover:bg-slate-100 font-bold rounded-xl text-xs uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={handleApproveAndLink}
-                                    disabled={selectedStudentIds.length === 0 || approvalProcessing}
-                                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs uppercase tracking-wider shadow-xs transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                                >
-                                    {approvalProcessing
-                                        ? 'Processing...'
-                                        : `Approve & Link (${selectedStudentIds.length} ${
-                                              selectedStudentIds.length === 1 ? 'Child' : 'Children'
-                                          })`}
-                                </button>
-                            </div>
+                        <div className="border-t border-slate-100 px-6 sm:px-8 py-4 flex justify-end">
+                            <button type="button" onClick={closeViewModal} className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs uppercase tracking-wider cursor-pointer">Close</button>
                         </div>
                     </div>
                 </div>

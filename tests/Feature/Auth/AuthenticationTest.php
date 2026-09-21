@@ -30,6 +30,62 @@ class AuthenticationTest extends TestCase
         $response->assertRedirect(route('dashboard', absolute: false));
     }
 
+    public function test_active_parent_can_authenticate(): void
+    {
+        $parent = User::factory()->create([
+            'role' => 'parent',
+            'status' => 'active',
+        ]);
+
+        $response = $this->post('/login', [
+            'email' => $parent->email,
+            'password' => 'password',
+        ]);
+
+        $this->assertAuthenticatedAs($parent);
+        $response->assertRedirect(route('parent.dashboard', absolute: false));
+    }
+
+    public function test_pending_parent_cannot_authenticate(): void
+    {
+        $parent = User::factory()->create([
+            'role' => 'parent',
+            'status' => 'pending',
+        ]);
+
+        $response = $this->post('/login', [
+            'email' => $parent->email,
+            'password' => 'password',
+        ]);
+
+        $this->assertGuest();
+        $response
+            ->assertRedirect(route('login', absolute: false))
+            ->assertSessionHasErrors([
+                'email' => 'Your account is pending admin approval.',
+            ]);
+    }
+
+    public function test_rejected_parent_cannot_authenticate(): void
+    {
+        $parent = User::factory()->create([
+            'role' => 'parent',
+            'status' => 'rejected',
+        ]);
+
+        $response = $this->post('/login', [
+            'email' => $parent->email,
+            'password' => 'password',
+        ]);
+
+        $this->assertGuest();
+        $response
+            ->assertRedirect(route('login', absolute: false))
+            ->assertSessionHasErrors([
+                'email' => 'Your registration has been rejected. Please contact the administrator.',
+            ]);
+    }
+
     public function test_users_can_not_authenticate_with_invalid_password(): void
     {
         $user = User::factory()->create();

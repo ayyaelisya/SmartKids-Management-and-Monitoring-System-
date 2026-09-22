@@ -7,14 +7,19 @@ use App\Models\LatePickup;
 use App\Models\Student;
 use App\Services\LatePickupService;
 use Carbon\Carbon;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
+use Inertia\Response;
 
 class TeacherAttendanceController extends Controller
 {
-    // Display teacher attendance management
-    public function index(Request $request)
+    /**
+     * Display teacher attendance management.
+     */
+    public function index(Request $request): Response
     {
         $date = $request->input(
             'date',
@@ -22,333 +27,349 @@ class TeacherAttendanceController extends Controller
         );
 
         $user = Auth::user();
+        $teacherClass = $user->assigned_class ?? 'Butterfly Class';
 
-        $teacherClass = $user->assigned_class
-            ?? 'Butterfly Class';
-
-        // Retrieve students with package and attendance
-        $students = Student::where('is_active', 1)
+        $students = Student::query()
+            ->where('is_active', 1)
             ->with([
                 'package',
                 'attendances' => function ($query) use ($date) {
-                    $query->where('date', $date);
-                }
+                    $query->whereDate('date', $date);
+                },
             ])
             ->get()
-            ->map(function ($student) {
+            ->map(function (Student $student) {
                 $attendance = $student->attendances->first();
 
                 return [
                     'id' => $student->student_id,
-                    'name' => $student->full_name
-                        ?? 'Unknown Student',
-
+                    'name' => $student->full_name ?? 'Unknown Student',
                     'mykid' => $student->mykid_number
                         ?? $student->ic_number
                         ?? '',
-
                     'class_name' => $student->class_name,
-
                     'qr_code_token' => $student->qr_code_token
                         ?? $student->mykid_number
                         ?? (string) $student->student_id,
 
-                    'status' => $attendance
-                        ? $attendance->status
-                        : 'Absent',
+                    // Null means attendance has not been marked yet.
+                    // Only an existing attendance row may have status Absent.
+                    'status' => $attendance?->status,
+                    'check_in_time' => $attendance?->check_in_time
+                        ? Carbon::parse($attendance->check_in_time)->format('h:i A')
+                        : null,
+                    'check_out_time' => $attendance?->check_out_time
+                        ? Carbon::parse($attendance->check_out_time)->format('h:i A')
+                        : null,
+                    'method' => $attendance?->method,
+                    'attendance_id' => $attendance?->id,
+                    'absence_reason' => $attendance?->absence_reason,
+                    'absence_attachment' => $this->getAttachmentUrl(
+                        $attendance?->absence_attachment
+                    ),
+                    'absence_status' => $attendance?->absence_status,
 
-                    'check_in_time' =>
-                        $attendance &&
-                        $attendance->check_in_time
-                            ? Carbon::parse(
-                                $attendance->check_in_time
-                            )->format('h:i A')
-                            : null,
-
-                    'check_out_time' =>
-                        $attendance &&
-                        $attendance->check_out_time
-                            ? Carbon::parse(
-                                $attendance->check_out_time
-                            )->format('h:i A')
-                            : null,
-
-                    'method' => $attendance->method
-                        ?? 'Manual',
-
-                    'remarks' => $attendance->remarks
-                        ?? null,
-
-                    // Package information
                     'package' => $student->package
                         ? [
-                            'package_id' =>
-                                $student->package->package_id,
-
-                            'package_name' =>
-                                $student->package->package_name,
-
-                            'age_group' =>
-                                $student->package->age_group,
-
-                            'monthly_fee' =>
-                                $student->package->monthly_fee,
-
-                            'start_time' =>
-                                $student->package->start_time,
-
-                            'end_time' =>
-                                $student->package->end_time,
+                            'package_id' => $student->package->package_id,
+                            'package_name' => $student->package->package_name,
+                            'age_group' => $student->package->age_group,
+                            'monthly_fee' => $student->package->monthly_fee,
+                            'start_time' => $student->package->start_time,
+                            'end_time' => $student->package->end_time,
                         ]
                         : null,
                 ];
             });
 
-        // Retrieve recent attendance scans
-        $recentScans = Attendance::with('student')
-            ->where('date', $date)
+        $recentScans = Attendance::query()
+            ->with('student')
+            ->whereDate('date', $date)
             ->where(function ($query) {
-                $query
-                    ->whereNotNull('check_in_time')
+                $query->whereNotNull('check_in_time')
                     ->orWhereNotNull('check_out_time');
             })
             ->latest('updated_at')
             ->take(10)
             ->get()
-            ->map(function ($attendance) {
+            ->map(function (Attendance $attendance) {
                 $scanTime = $attendance->check_out_time
                     ?? $attendance->check_in_time;
 
                 return [
                     'id' => $attendance->id,
                     'student_id' => $attendance->student_id,
-
-                    'name' => $attendance->student->full_name
+                    'name' => $attendance->student?->full_name
                         ?? 'Unknown Student',
-
                     'time' => $scanTime
-                        ? Carbon::parse($scanTime)
-                            ->format('h:i A')
+                        ? Carbon::parse($scanTime)->format('h:i A')
                         : '-',
-
                     'status' => $attendance->status,
-
                     'type' => $attendance->check_out_time
                         ? 'Check Out'
                         : 'Check In',
-
                     'is_verified' => true,
                 ];
             });
 
-        // Retrieve late pickup records
-        $pickupRecords = LatePickup::with([
-            'student.package',
-            'attendance'
-        ])
-            ->whereHas(
-                'attendance',
-                function ($query) use ($date) {
-                    $query->where('date', $date);
-                }
-            )
+        $pickupRecords = LatePickup::query()
+            ->with(['student.package', 'attendance'])
+            ->whereHas('attendance', function ($query) use ($date) {
+                $query->whereDate('date', $date);
+            })
             ->get()
-            ->map(function ($pickup) {
+            ->map(function (LatePickup $pickup) {
                 return [
-                    'student_name' =>
-                        $pickup->student->full_name
+                    'id' => $pickup->id,
+                    'student_name' => $pickup->student?->full_name
                         ?? 'Unknown',
-
-                    'package_name' =>
-                        $pickup->student?->package?->package_name
+                    'package_name' => $pickup->student?->package?->package_name
                         ?? '-',
-
                     'expected_pickup_time' =>
                         $pickup->student?->package?->end_time,
-
-                    'actual_pickup_time' =>
-                        $pickup->attendance?->check_out_time
-                            ? Carbon::parse(
-                                $pickup->attendance->check_out_time
-                            )->format('h:i A')
-                            : '-',
-
-                    'late_duration' =>
-                        $pickup->late_minutes . ' mins',
-
-                    'late_minutes' =>
-                        $pickup->late_minutes,
-
-                    'late_fee' =>
-                        number_format(
-                            $pickup->calculated_fee,
-                            2
-                        ),
-
+                    'actual_pickup_time' => $pickup->attendance?->check_out_time
+                        ? Carbon::parse(
+                            $pickup->attendance->check_out_time
+                        )->format('h:i A')
+                        : '-',
+                    'late_duration' => $pickup->late_minutes . ' mins',
+                    'late_minutes' => $pickup->late_minutes,
+                    'late_fee' => number_format(
+                        (float) $pickup->calculated_fee,
+                        2,
+                        '.',
+                        ''
+                    ),
                     'is_late' => true,
                 ];
             });
 
-        return Inertia::render(
-            'Teacher/AttendanceManagement',
-            [
-                'students' => $students,
-                'selectedDate' => $date,
-                'teacherClass' => $teacherClass,
-                'expectedArrivalTime' => '07:00',
-                'recentScans' => $recentScans,
-                'pickupRecords' => $pickupRecords,
-                'latePickupRate' => 0.10,
-            ]
-        );
+        return Inertia::render('Teacher/AttendanceManagement', [
+            'students' => $students,
+            'selectedDate' => $date,
+            'teacherClass' => $teacherClass,
+            'expectedArrivalTime' => '07:00',
+            'recentScans' => $recentScans,
+            'pickupRecords' => $pickupRecords,
+            'latePickupRate' => 0.10,
+        ]);
     }
 
-    // Update attendance using QR or manual method
+    /**
+     * Update attendance using QR or manual method.
+     */
     public function update(
         Request $request,
         LatePickupService $latePickupService
-    ) {
-        $request->validate([
-            'student_id' => 'required',
-            'date' => 'nullable|string',
-
+    ): RedirectResponse {
+        $validated = $request->validate([
+            'student_id' => ['required'],
+            'date' => ['nullable', 'date'],
             'status' => [
                 'required',
-                'in:Present,Late,Late Arrival,Absent,Checked Out'
+                Rule::in([
+                    'Present',
+                    'Late',
+                    'Late Arrival',
+                    'Absent',
+                    'Checked Out',
+                ]),
             ],
-
-            'method' => 'nullable|string',
-            'check_in_time' => 'nullable|string',
-
-            'action' => [
-                'nullable',
-                'in:check_in,check_out'
-            ],
+            'method' => ['nullable', 'string', 'max:100'],
+            'check_in_time' => ['nullable', 'date_format:H:i:s'],
+            'action' => ['nullable', Rule::in(['check_in', 'check_out'])],
         ]);
 
-        // Find student using ID or QR token
-        $student = Student::with('package')
-            ->where(
-                'student_id',
-                $request->student_id
-            )
-            ->orWhere(
-                'qr_code_token',
-                $request->student_id
-            )
+        $student = Student::query()
+            ->with('package')
+            ->where('student_id', $validated['student_id'])
+            ->orWhere('qr_code_token', $validated['student_id'])
             ->first();
 
-        if (!$student) {
-            return redirect()
-                ->back()
-                ->withErrors([
-                    'student_id' =>
-                        'Student record not found.'
-                ]);
+        if (! $student) {
+            return back()->withErrors([
+                'student_id' => 'Student record not found.',
+            ]);
         }
 
-        $now = Carbon::now(
-            'Asia/Kuala_Lumpur'
-        );
-
-        $today = $request->date
-            ? Carbon::parse(
-                $request->date
-            )->toDateString()
+        $now = Carbon::now('Asia/Kuala_Lumpur');
+        $attendanceDate = ! empty($validated['date'])
+            ? Carbon::parse($validated['date'])->toDateString()
             : $now->toDateString();
-
         $currentTime = $now->toTimeString();
 
-        // Normalize status
-        $status = $request->status === 'Late Arrival'
+        $status = $validated['status'] === 'Late Arrival'
             ? 'Late'
-            : $request->status;
+            : $validated['status'];
+        $action = $validated['action'] ?? null;
 
         $attendance = Attendance::firstOrNew([
             'student_id' => $student->student_id,
-            'date' => $today,
+            'date' => $attendanceDate,
         ]);
 
-        $attendance->status = $status;
-        $attendance->method =
-            $request->method ?? 'Manual';
-
-        $attendance->recorded_by =
-            Auth::id();
-
-        // Record check-in
+        // An existing Absent record cannot be overwritten as another status.
         if (
-            in_array($status, ['Present', 'Late']) &&
-            !$attendance->check_in_time
+            $attendance->exists
+            && $attendance->status === 'Absent'
+            && $status !== 'Absent'
         ) {
-            $attendance->check_in_time =
-                $currentTime;
+            return back()->withErrors([
+                'attendance' =>
+                    'This student has already been marked absent for this date.',
+            ]);
         }
 
-        // Record check-out
+        // Check-out is only allowed after a valid check-in.
         if (
-            $status === 'Checked Out' ||
-            $request->action === 'check_out'
+            ($status === 'Checked Out' || $action === 'check_out')
+            && ! $attendance->check_in_time
         ) {
-            if (!$attendance->check_in_time) {
+            return back()->withErrors([
+                'attendance' =>
+                    'The student must check in before checking out.',
+            ]);
+        }
+
+        $attendance->method = $validated['method'] ?? 'Manual';
+        $attendance->recorded_by = Auth::id();
+
+        if ($status === 'Absent') {
+            $attendance->status = 'Absent';
+            $attendance->check_in_time = null;
+            $attendance->check_out_time = null;
+            $attendance->save();
+
+            return back()->with(
+                'success',
+                'Student marked absent successfully.'
+            );
+        }
+
+        if (in_array($status, ['Present', 'Late'], true)) {
+            $attendance->status = $status;
+
+            if (! $attendance->check_in_time) {
                 $attendance->check_in_time =
-                    $currentTime;
+                    $validated['check_in_time'] ?? $currentTime;
             }
 
-            $attendance->check_out_time =
-                $currentTime;
-
-            $attendance->status =
-                'Checked Out';
-
             $attendance->save();
 
-            // Calculate late pickup from package end time
-            $latePickupService->processCheckout(
-                $attendance,
-                $currentTime
-            );
-        } else {
-            $attendance->save();
-        }
-
-        return redirect()
-            ->back()
-            ->with(
+            return back()->with(
                 'success',
                 'Attendance record updated successfully.'
             );
-    }
+        }
 
-    // Manual attendance update
-    public function updateManual(Request $request)
-    {
-        return app()->call(
-            [$this, 'update'],
-            ['request' => $request]
+        $attendance->check_out_time = $currentTime;
+        $attendance->status = 'Checked Out';
+        $attendance->save();
+
+        $latePickupService->processCheckout(
+            $attendance,
+            $currentTime
+        );
+
+        return back()->with(
+            'success',
+            'Check-out recorded successfully.'
         );
     }
 
-    // QR attendance update
-    public function scanQrCode(Request $request)
+    /**
+     * Manual attendance update.
+     */
+    public function updateManual(Request $request): RedirectResponse
+    {
+        return app()->call([$this, 'update'], [
+            'request' => $request,
+        ]);
+    }
+
+    /**
+     * QR attendance update.
+     */
+    public function scanQrCode(Request $request): RedirectResponse
     {
         $request->validate([
-            'student_id' => 'required',
-            'action' => 'required|in:check_in,check_out',
+            'student_id' => ['required'],
+            'action' => ['required', Rule::in(['check_in', 'check_out'])],
+            'date' => ['nullable', 'date'],
         ]);
 
         $request->merge([
-            'status' =>
-                $request->action === 'check_in'
-                    ? 'Present'
-                    : 'Checked Out',
-
+            'status' => $request->action === 'check_in'
+                ? 'Present'
+                : 'Checked Out',
             'method' => 'QR Scan',
         ]);
 
-        return app()->call(
-            [$this, 'update'],
-            ['request' => $request]
+        return app()->call([$this, 'update'], [
+            'request' => $request,
+        ]);
+    }
+
+    /**
+     * Approve or reject a parent's absence submission.
+     */
+    public function updateAbsenceStatus(
+        Request $request,
+        Attendance $attendance
+    ): RedirectResponse {
+        $validated = $request->validate([
+            'absence_status' => [
+                'required',
+                Rule::in(['Approved', 'Rejected']),
+            ],
+        ]);
+
+        if (! $attendance->absence_reason) {
+            return back()->withErrors([
+                'absence_status' =>
+                    'No absence reason has been submitted.',
+            ]);
+        }
+
+        if ($attendance->status !== 'Absent') {
+            return back()->withErrors([
+                'absence_status' =>
+                    'Only an absent attendance record can be reviewed.',
+            ]);
+        }
+
+        $attendance->update([
+            'absence_status' => $validated['absence_status'],
+        ]);
+
+        $message = $validated['absence_status'] === 'Approved'
+            ? 'Absence submission approved successfully.'
+            : 'Absence submission rejected successfully.';
+
+        return back()->with('success', $message);
+    }
+
+    /**
+     * Generate a public attachment URL.
+     */
+    private function getAttachmentUrl(?string $attachment): ?string
+    {
+        if (! $attachment) {
+            return null;
+        }
+
+        if (
+            str_starts_with($attachment, 'http://')
+            || str_starts_with($attachment, 'https://')
+        ) {
+            return $attachment;
+        }
+
+        $cleanPath = ltrim(
+            str_replace('/storage/', '', $attachment),
+            '/'
         );
+
+        return asset('storage/' . $cleanPath);
     }
 }

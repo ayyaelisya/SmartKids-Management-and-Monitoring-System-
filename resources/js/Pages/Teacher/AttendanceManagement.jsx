@@ -15,6 +15,7 @@ import {
     LogOut as PickupIcon,
     Upload,
     FileImage,
+    FileText,
     LogIn,
     LogOut,
 } from 'lucide-react';
@@ -254,6 +255,17 @@ export default function AttendanceManagement({
             return;
         }
 
+        // Do not allow an existing absence record to be overwritten by QR.
+        if (scannedStudent.status === 'Absent') {
+            setScanResult({
+                type: 'invalid',
+                message: `${scannedStudent.name} has already been marked absent for this date.`,
+            });
+
+            resumeScanner();
+            return;
+        }
+
         const now = new Date();
 
         const displayTimeStr = now.toLocaleTimeString([], {
@@ -457,6 +469,38 @@ export default function AttendanceManagement({
             },
             {
                 preserveScroll: true,
+            }
+        );
+    };
+
+    const handleAbsenceDecision = (student, newStatus) => {
+        if (!student.attendance_id) {
+            alert('Attendance record was not found.');
+            return;
+        }
+
+        const confirmationMessage =
+            newStatus === 'Approved'
+                ? `Approve absence submission for ${student.name}?`
+                : `Reject absence submission for ${student.name}?`;
+
+        if (!window.confirm(confirmationMessage)) {
+            return;
+        }
+
+        router.patch(
+            `/teacher/attendance/${student.attendance_id}/absence-status`,
+            {
+                absence_status: newStatus,
+            },
+            {
+                preserveScroll: true,
+                onError: (errors) => {
+                    alert(
+                        errors.absence_status ||
+                            'Unable to update absence status.'
+                    );
+                },
             }
         );
     };
@@ -1111,6 +1155,11 @@ export default function AttendanceManagement({
                                         <th className="py-3 px-4">
                                             Check-Out
                                         </th>
+
+                                        <th className="py-3 px-4 min-w-[220px]">
+                                            Reason / MC
+                                        </th>
+
                                         <th className="py-3 px-4 text-right">
                                             Actions
                                         </th>
@@ -1122,7 +1171,7 @@ export default function AttendanceManagement({
                                     0 ? (
                                         <tr>
                                             <td
-                                                colSpan="5"
+                                                colSpan="6"
                                                 className="py-8 text-center text-[#68736B] italic"
                                             >
                                                 No students
@@ -1180,10 +1229,97 @@ export default function AttendanceManagement({
                                                             '-'}
                                                     </td>
 
-                                                    <td className="py-3 px-4 text-right space-x-1">
-                                                        {student.check_in_time &&
-                                                        !student.check_out_time ? (
+                                                    <td className="py-3 px-4">
+    {student.absence_reason ? (
+        <div className="space-y-1.5">
+            <p className="text-[11px] text-[#26332A] font-semibold">
+                {student.absence_reason}
+            </p>
+
+            <span
+                className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                    student.absence_status ===
+                    'Approved'
+                        ? 'bg-[#72A77D]/15 text-[#527A5D]'
+                        : student.absence_status ===
+                          'Rejected'
+                        ? 'bg-[#D97B73]/15 text-[#D97B73]'
+                        : 'bg-[#E8B85C]/15 text-[#B68120]'
+                }`}
+            >
+                {student.absence_status ||
+                    'Pending'}
+            </span>
+
+            {student.absence_attachment && (
+                <a
+                    href={
+                        student.absence_attachment
+                    }
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1 text-[10px] text-[#527A5D] font-bold hover:underline"
+                >
+                    <FileText className="w-3 h-3" />
+                    View MC
+                </a>
+            )}
+        </div>
+    ) : (
+        <span className="text-[10px] text-[#68736B]">
+            No reason submitted
+        </span>
+    )}
+</td>
+
+                                                    <td className="py-3 px-4 text-right">
+                                                        {student.status ===
+                                                        'Absent' ? (
+                                                            student.absence_reason &&
+                                                            (student.absence_status ||
+                                                                'Pending') ===
+                                                                'Pending' ? (
+                                                                <div className="flex flex-wrap justify-end gap-1.5">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() =>
+                                                                            handleAbsenceDecision(
+                                                                                student,
+                                                                                'Approved'
+                                                                            )
+                                                                        }
+                                                                        className="px-2.5 py-1 bg-[#72A77D]/15 text-[#527A5D] hover:bg-[#527A5D] hover:text-white rounded-lg font-bold text-[10px]"
+                                                                    >
+                                                                        Approve
+                                                                    </button>
+
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() =>
+                                                                            handleAbsenceDecision(
+                                                                                student,
+                                                                                'Rejected'
+                                                                            )
+                                                                        }
+                                                                        className="px-2.5 py-1 bg-[#D97B73]/15 text-[#D97B73] hover:bg-[#D97B73] hover:text-white rounded-lg font-bold text-[10px]"
+                                                                    >
+                                                                        Reject
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-[10px] font-bold text-[#68736B]">
+                                                                    {student.absence_reason
+                                                                        ? `Absence ${
+                                                                              student.absence_status ||
+                                                                              'Pending'
+                                                                          }`
+                                                                        : 'Waiting for parent reason'}
+                                                                </span>
+                                                            )
+                                                        ) : student.check_in_time &&
+                                                          !student.check_out_time ? (
                                                             <button
+                                                                type="button"
                                                                 onClick={() =>
                                                                     handleManualCheckout(
                                                                         student.id
@@ -1197,6 +1333,7 @@ export default function AttendanceManagement({
                                                         ) : !student.check_in_time ? (
                                                             <>
                                                                 <button
+                                                                    type="button"
                                                                     onClick={() =>
                                                                         handleManualStatusUpdate(
                                                                             student.id,
@@ -1209,6 +1346,7 @@ export default function AttendanceManagement({
                                                                 </button>
 
                                                                 <button
+                                                                    type="button"
                                                                     onClick={() =>
                                                                         handleManualStatusUpdate(
                                                                             student.id,
@@ -1221,6 +1359,7 @@ export default function AttendanceManagement({
                                                                 </button>
 
                                                                 <button
+                                                                    type="button"
                                                                     onClick={() =>
                                                                         handleManualStatusUpdate(
                                                                             student.id,
@@ -1282,7 +1421,7 @@ export default function AttendanceManagement({
                                     0 ? (
                                         <tr>
                                             <td
-                                                colSpan="5"
+                                                colSpan="6"
                                                 className="py-8 text-center text-[#68736B] italic"
                                             >
                                                 No late pickup

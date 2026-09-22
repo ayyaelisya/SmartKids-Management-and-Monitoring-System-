@@ -105,4 +105,15 @@ class Student extends Model
             'package_id'
         );
     }
+    /**
+ * Messaging conversations related to this student.
+ */
+public function conversations()
+{
+    return $this->hasMany(
+        Conversation::class,
+        'student_id',
+        'student_id'
+    );
+}
 }

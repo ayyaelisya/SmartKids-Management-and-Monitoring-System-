@@ -3,136 +3,377 @@
 namespace App\Http\Controllers;
 
 use App\Models\Attendance;
-use App\Models\Student;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class ParentAttendanceController extends Controller
 {
+    /**
+     * Display attendance belonging to the parent's children.
+     */
     public function index(Request $request)
     {
-        /** @var \App\Models\User $user */
-        $user = Auth::user();
+        $request->validate([
+            'month' => 'nullable|date_format:Y-m',
+            'student_id' => 'nullable|integer',
+        ]);
 
-        // 1. Dapatkan anak-anak yang berhubung dengan akaun ibu bapa menggunakan Eloquent Relationship
-        $studentsQuery = $user->students();
+        $user = $request->user();
+        $parent = $user->parent;
 
-        // Backup fallback jika perhubungan pivot menggunakan parent_id dari jadual parents
-        if ($studentsQuery->count() === 0 && $user->parent) {
-            $studentsQuery = Student::whereIn('student_id', function ($query) use ($user) {
-                $query->select('student_id')
-                    ->from('parent_student')
-                    ->where('parent_id', $user->parent->parent_id);
-            });
+        if (! $parent) {
+            abort(403, 'Parent profile was not found.');
         }
 
-        $students = $studentsQuery->get();
+        // Only retrieve children linked to this parent.
+        $students = $parent->students()
+            ->select([
+                'students.student_id',
+                'students.full_name',
+                'students.class_name',
+            ])
+            ->orderBy('students.full_name')
+            ->get();
 
-        // Petakan senarai anak ke format 'childrenList' mengikut kehendak komponen React
-        $childrenList = $students->map(function ($s) {
-            return [
-                'id'    => (string) ($s->student_id ?? $s->id),
-                'name'  => $s->full_name ?? $s->name,
-                'class' => $s->class_name ?? $s->class ?? 'N/A',
-            ];
-        })->values();
+        $childrenList = $students
+            ->map(function ($student) {
+                return [
+                    'id' => (string) $student->student_id,
+                    'name' => $student->full_name,
+                    'class' =>
+                        $student->class_name ?? 'N/A',
+                ];
+            })
+            ->values();
 
-        $selectedMonth = $request->input('month', Carbon::now()->format('Y-m'));
+        $selectedMonth = $request->input(
+            'month',
+            Carbon::now('Asia/Kuala_Lumpur')
+                ->format('Y-m')
+        );
 
+        // Show an empty page if the parent has no linked child.
         if ($childrenList->isEmpty()) {
-            return Inertia::render('Parent/AttendanceHistory', [
-                'childrenList'      => [],
-                'selectedStudentId' => '',
-                'selectedMonth'     => $selectedMonth,
-                'attendances'       => [],
-                'stats'             => [
-                    'present'        => 0,
-                    'late'           => 0,
-                    'absent'         => 0,
-                    'attendanceRate' => 0,
-                ],
-            ]);
+            return Inertia::render(
+                'Parent/AttendanceHistory',
+                [
+                    'childrenList' => [],
+                    'selectedStudentId' => '',
+                    'selectedMonth' => $selectedMonth,
+                    'attendances' => [],
+                    'stats' => [
+                        'present' => 0,
+                        'late' => 0,
+                        'absent' => 0,
+                        'attendanceRate' => 0,
+                    ],
+                ]
+            );
         }
 
-        // 2. Tentukan anak yang dipilih
-        $selectedStudentId = (string) $request->input('student_id', $childrenList->first()['id']);
+        $requestedStudentId = $request->input(
+            'student_id'
+        );
 
-        // 3. Tapis mengikut bulan & julat tarikh
-        $startDate = Carbon::parse($selectedMonth)->startOfMonth()->toDateString();
-        $endDate   = Carbon::parse($selectedMonth)->endOfMonth()->toDateString();
+        /*
+         * Confirm that the requested student belongs to
+         * the currently authenticated parent.
+         */
+        $selectedStudent = $requestedStudentId
+            ? $students->firstWhere(
+                'student_id',
+                (int) $requestedStudentId
+            )
+            : $students->first();
 
-        // 4. Ambil rekod kehadiran
-        $attendances = Attendance::where('student_id', $selectedStudentId)
-            ->whereBetween('date', [$startDate, $endDate])
+        if (! $selectedStudent) {
+            abort(
+                403,
+                'You are not allowed to view this student.'
+            );
+        }
+
+        $selectedStudentId =
+            $selectedStudent->student_id;
+
+        $month = Carbon::createFromFormat(
+            'Y-m',
+            $selectedMonth,
+            'Asia/Kuala_Lumpur'
+        );
+
+        $startDate = $month
+            ->copy()
+            ->startOfMonth()
+            ->toDateString();
+
+        $endDate = $month
+            ->copy()
+            ->endOfMonth()
+            ->toDateString();
+
+        $attendances = Attendance::where(
+            'student_id',
+            $selectedStudentId
+        )
+            ->whereBetween(
+                'date',
+                [$startDate, $endDate]
+            )
             ->orderBy('date', 'desc')
             ->get()
-            ->map(function ($att) {
+            ->map(function ($attendance) {
                 return [
-                    'id'                 => $att->id,
-                    'date'               => Carbon::parse($att->date)->format('Y-m-d'),
-                    'formatted_date'     => Carbon::parse($att->date)->format('d M Y (D)'),
-                    'status'             => $att->status ?? 'Absent',
-                    'check_in_time'      => $att->check_in_time ? Carbon::parse($att->check_in_time)->format('h:i A') : '-',
-                    'check_out_time'     => $att->check_out_time ? Carbon::parse($att->check_out_time)->format('h:i A') : '-',
-                    'absence_reason'     => $att->absence_reason,
-                    'absence_attachment' => $att->absence_attachment ? asset('storage/' . str_replace('/storage/', '', $att->absence_attachment)) : null,
-                    'absence_status'     => $att->absence_status ?? 'Pending',
+                    'id' => $attendance->id,
+
+                    'date' => Carbon::parse(
+                        $attendance->date
+                    )->format('Y-m-d'),
+
+                    'formatted_date' => Carbon::parse(
+                        $attendance->date
+                    )->format('d M Y (D)'),
+
+                    'status' =>
+                        $attendance->status ?? 'Absent',
+
+                    'check_in_time' =>
+                        $attendance->check_in_time
+                            ? Carbon::parse(
+                                $attendance->check_in_time
+                            )->format('h:i A')
+                            : '-',
+
+                    'check_out_time' =>
+                        $attendance->check_out_time
+                            ? Carbon::parse(
+                                $attendance->check_out_time
+                            )->format('h:i A')
+                            : '-',
+
+                    'absence_reason' =>
+                        $attendance->absence_reason,
+
+                    'absence_attachment' =>
+                        $attendance->absence_attachment
+                            ? asset(
+                                'storage/' .
+                                ltrim(
+                                    str_replace(
+                                        '/storage/',
+                                        '',
+                                        $attendance
+                                            ->absence_attachment
+                                    ),
+                                    '/'
+                                )
+                            )
+                            : null,
+
+                    'absence_status' =>
+                        $attendance->absence_status
+                            ?? 'Pending',
                 ];
             });
 
-        // 5. Pengiraan Statistik Kehadiran
-        $totalDays    = $attendances->count();
-        $presentCount = $attendances->whereIn('status', ['Present', 'Checked Out'])->count();
-        $lateCount    = $attendances->where('status', 'Late')->count();
-        $absentCount  = $attendances->where('status', 'Absent')->count();
+        $totalDays = $attendances->count();
+
+        $presentCount = $attendances
+            ->whereIn(
+                'status',
+                ['Present', 'Checked Out']
+            )
+            ->count();
+
+        $lateCount = $attendances
+            ->whereIn(
+                'status',
+                ['Late', 'Late Arrival']
+            )
+            ->count();
+
+        $absentCount = $attendances
+            ->where('status', 'Absent')
+            ->count();
 
         $attendanceRate = $totalDays > 0
-            ? round((($presentCount + $lateCount) / $totalDays) * 100)
+            ? round(
+                (
+                    ($presentCount + $lateCount) /
+                    $totalDays
+                ) * 100
+            )
             : 0;
 
-        return Inertia::render('Parent/AttendanceHistory', [
-            'childrenList'      => $childrenList,
-            'selectedStudentId' => $selectedStudentId,
-            'selectedMonth'     => $selectedMonth,
-            'attendances'       => $attendances,
-            'stats'             => [
-                'present'        => $presentCount,
-                'late'           => $lateCount,
-                'absent'         => $absentCount,
-                'attendanceRate' => $attendanceRate,
-            ],
-        ]);
+        return Inertia::render(
+            'Parent/AttendanceHistory',
+            [
+                'childrenList' => $childrenList,
+
+                'selectedStudentId' =>
+                    (string) $selectedStudentId,
+
+                'selectedMonth' => $selectedMonth,
+                'attendances' => $attendances,
+
+                'stats' => [
+                    'present' => $presentCount,
+                    'late' => $lateCount,
+                    'absent' => $absentCount,
+                    'attendanceRate' =>
+                        $attendanceRate,
+                ],
+            ]
+        );
     }
 
-    public function submitAbsenceReason(Request $request)
-    {
-        $request->validate([
-            'student_id' => 'required',
-            'date'       => 'required|date',
-            'reason'     => 'required|string|max:500',
-            'attachment' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:2048',
+    /**
+     * Submit an absence reason for the parent's child.
+     */
+    public function submitAbsenceReason(
+        Request $request
+    ) {
+        $validated = $request->validate([
+            'student_id' => [
+                'required',
+                'integer',
+                'exists:students,student_id',
+            ],
+
+            'date' => [
+                'required',
+                'date',
+            ],
+
+            'reason' => [
+                'required',
+                'string',
+                'max:500',
+            ],
+
+            'attachment' => [
+                'nullable',
+                'file',
+                'mimes:jpg,jpeg,png,pdf',
+                'max:2048',
+            ],
         ]);
 
-        $filePath = null;
+        $user = $request->user();
+        $parent = $user->parent;
+
+        if (! $parent) {
+            abort(403, 'Parent profile was not found.');
+        }
+
+        /*
+         * Security check: confirm that the student is
+         * linked to the authenticated parent.
+         */
+        $student = $parent->students()
+            ->where(
+                'students.student_id',
+                $validated['student_id']
+            )
+            ->first();
+
+        if (! $student) {
+            abort(
+                403,
+                'You are not allowed to submit an absence for this student.'
+            );
+        }
+
+        $attendance = Attendance::where(
+            'student_id',
+            $student->student_id
+        )
+            ->whereDate('date', $validated['date'])
+            ->first();
+
+        /*
+         * Do not allow a parent to replace an attendance
+         * record already recorded by a teacher.
+         */
+        if (
+            $attendance &&
+            in_array(
+                $attendance->status,
+                [
+                    'Present',
+                    'Late',
+                    'Late Arrival',
+                    'Checked Out',
+                ],
+                true
+            )
+        ) {
+            return redirect()
+                ->back()
+                ->withErrors([
+                    'date' =>
+                        'Attendance has already been recorded for this date.',
+                ]);
+        }
+
+        $absenceData = [
+            'status' => 'Absent',
+            'absence_reason' =>
+                $validated['reason'],
+
+            'absence_status' => 'Pending',
+        ];
+
         if ($request->hasFile('attachment')) {
-            $filePath = $request->file('attachment')->store('absence_attachments', 'public');
+            /*
+             * Delete the previous attachment when
+             * replacing it with a new file.
+             */
+            if (
+                $attendance &&
+                $attendance->absence_attachment
+            ) {
+                $oldPath = str_replace(
+                    '/storage/',
+                    '',
+                    $attendance->absence_attachment
+                );
+
+                if (
+                    Storage::disk('public')
+                        ->exists($oldPath)
+                ) {
+                    Storage::disk('public')
+                        ->delete($oldPath);
+                }
+            }
+
+            $absenceData['absence_attachment'] =
+                $request
+                    ->file('attachment')
+                    ->store(
+                        'absence_attachments',
+                        'public'
+                    );
         }
 
         Attendance::updateOrCreate(
             [
-                'student_id' => $request->student_id,
-                'date'       => $request->date,
+                'student_id' =>
+                    $student->student_id,
+
+                'date' => $validated['date'],
             ],
-            [
-                'status'             => 'Absent',
-                'absence_reason'     => $request->reason,
-                'absence_attachment' => $filePath,
-                'absence_status'     => 'Pending',
-            ]
+            $absenceData
         );
 
-        return redirect()->back()->with('success', 'Sebab ketidakhadiran berjaya dihantar.');
+        return redirect()
+            ->back()
+            ->with(
+                'success',
+                'Absence reason submitted successfully.'
+            );
     }
 }

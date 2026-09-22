@@ -15,10 +15,22 @@ class Attendance extends Model
         'check_out_time',
         'status',
         'method',
+        'remarks',
         'recorded_by',
+
+        // Parent absence submission
+        'absence_reason',
+        'absence_attachment',
+        'absence_status',
     ];
 
-    // Student attendance owner
+    protected $casts = [
+        'date' => 'date',
+    ];
+
+    /**
+     * Student who owns this attendance record.
+     */
     public function student(): BelongsTo
     {
         return $this->belongsTo(
@@ -28,7 +40,9 @@ class Attendance extends Model
         );
     }
 
-    // User who recorded attendance
+    /**
+     * User who recorded the attendance.
+     */
     public function recorder(): BelongsTo
     {
         return $this->belongsTo(
@@ -38,7 +52,9 @@ class Attendance extends Model
         );
     }
 
-    // Late pickup record
+    /**
+     * Late pickup record connected to this attendance.
+     */
     public function latePickup(): HasOne
     {
         return $this->hasOne(

@@ -18,6 +18,7 @@ use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\AdminStudentQrController;
 use App\Http\Controllers\ParentAttendanceController;
 use App\Http\Controllers\AnnouncementController;
+use App\Http\Controllers\MessagingController;
 
 
 // Public / Guest Routes
@@ -101,6 +102,15 @@ Route::middleware(['auth'])->group(function () {
             [AdminAttendanceController::class, 'index']
         )->name('attendance.index');
 
+        Route::patch(
+            '/attendance/{attendance}/absence-status',
+            [
+                AdminAttendanceController::class,
+                'updateAbsenceStatus',
+            ]
+        )->name(
+            'attendance.absence-status'
+        );
 
         // Student QR Management
 
@@ -233,6 +243,16 @@ Route::delete(
                 [TeacherAttendanceController::class, 'updateManual']
             )->name('attendance.update');
 
+            Route::patch(
+                '/attendance/{attendance}/absence-status',
+                [
+                    TeacherAttendanceController::class,
+                    'updateAbsenceStatus',
+                ]
+            )->name(
+                'attendance.absence-status'
+            );
+
             // Announcements
 
             Route::get(
@@ -254,6 +274,28 @@ Route::delete(
                 '/announcements/{announcement}',
                 [AnnouncementController::class, 'destroy']
             )->name('announcements.destroy');
+
+            // Teacher Messaging
+
+            Route::get(
+                '/messages',
+                [MessagingController::class, 'index']
+            )->name('messages.index');
+
+            Route::post(
+                '/messages/{conversation}/send',
+                [MessagingController::class, 'sendMessage']
+            )->name('messages.send');
+
+            Route::patch(
+                '/messages/{conversation}/read',
+                [MessagingController::class, 'markAsRead']
+            )->name('messages.read');
+
+            Route::post(
+                '/messages/conversations',
+                [MessagingController::class, 'storeTeacherConversation']
+            )->name('messages.conversations.store');
         });
 
 
@@ -346,6 +388,28 @@ Route::delete(
                 '/announcements',
                 [AnnouncementController::class, 'parentIndex']
             )->name('announcements.index');
+
+            // Parent Messaging
+
+            Route::get(
+                '/messages',
+                [MessagingController::class, 'index']
+            )->name('messages.index');
+
+            Route::post(
+                '/messages/conversations',
+                [MessagingController::class, 'storeConversation']
+            )->name('messages.conversation.store');
+
+            Route::post(
+                '/messages/{conversation}/send',
+                [MessagingController::class, 'sendMessage']
+            )->name('messages.send');
+
+            Route::patch(
+                '/messages/{conversation}/read',
+                [MessagingController::class, 'markAsRead']
+            )->name('messages.read');
         });
 });
 

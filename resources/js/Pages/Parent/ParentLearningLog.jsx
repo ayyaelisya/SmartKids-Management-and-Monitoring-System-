@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Head, Link, usePage, router } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
+import AuthenticatedLayoutParent from '@/Layouts/AuthenticatedLayoutParent';
 
 const CATEGORY_FIELDS = {
     'Check In': ['who_sent', 'temperature', 'health_symptoms', 'scars_bruises', 'fingernails', 'pee_poo'],
@@ -14,13 +15,6 @@ const CATEGORY_FIELDS = {
 };
 
 export default function ParentLearningLog({ childrenList = [], initialLogs = [], selectedDate = '', currentUser = {} }) {
-    const { props, url } = usePage();
-    const auth = props?.auth || {};
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-    const userEmail = currentUser?.email || auth?.user?.email || 'parent@example.com';
-    const userName = currentUser?.name || auth?.user?.name || 'Parent / Guardian';
-
     const [selectedChildId, setSelectedChildId] = useState('');
     const [logsList, setLogsList] = useState(initialLogs);
     const [filterDate, setFilterDate] = useState(selectedDate || new Date().toISOString().split('T')[0]);
@@ -52,19 +46,6 @@ export default function ParentLearningLog({ childrenList = [], initialLogs = [],
     const selectedChild = childrenList.find((c) => String(c.id) === String(selectedChildId));
     const filteredLogs = logsList.filter((log) => String(log.child_id) === String(selectedChildId));
 
-    // Semak secara dinamik mengikut URL semasa
-    const navItems = [
-        { name: 'Home', icon: '🏠', href: '/parent/dashboard' },
-        { name: 'My Children', icon: '👶', href: '/parent/children' },
-        { name: 'Learning Logs', icon: '📖', href: '/parent/learning-log' },
-        { name: 'Attendance History', icon: '📅', href: '/parent/attendance' },
-        { name: 'Invoices & Fees', icon: '💳', href: '/parent/invoices' },
-        { name: 'Announcements', icon: '📢', href: '/parent/announcements' },
-    ].map((item) => ({
-        ...item,
-        active: url.startsWith(item.href),
-    }));
-
     const handleToggleLike = (logId) => {
         setLogsList(logsList.map((log) => {
             if (log.id === logId) {
@@ -86,85 +67,10 @@ export default function ParentLearningLog({ childrenList = [], initialLogs = [],
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col md:flex-row font-sans relative">
+        <AuthenticatedLayoutParent activeNavId="learning-logs" pageTitle="Learning Log" pageSubtitle="Child Daily Activities">
             <Head title="Child Learning Log - Smart Kids" />
 
-            {/* MOBILE HEADER */}
-            <div className="md:hidden bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between sticky top-0 z-30 shadow-sm">
-                <div className="flex items-center gap-3">
-                    <img src="/images/logo.jpg" alt="Logo" className="w-9 h-9 rounded-xl object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
-                    <div>
-                        <h2 className="text-sm font-black text-slate-900 leading-none">Parent Portal</h2>
-                        <span className="text-[10px] text-amber-600 font-bold uppercase">Smart Kids</span>
-                    </div>
-                </div>
-                <button
-                    onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                    className="p-2 text-slate-600 hover:text-slate-900 focus:outline-none"
-                >
-                    <span className="text-xl">{isMobileMenuOpen ? '✕' : '☰'}</span>
-                </button>
-            </div>
-
-            {/* SIDEBAR NAVIGATION */}
-            <aside
-                className={`fixed inset-y-0 left-0 z-40 w-72 bg-white border-r border-slate-200 p-5 flex flex-col justify-between transition-transform duration-300 transform md:relative md:translate-x-0 md:w-80 shrink-0 shadow-lg md:shadow-none ${
-                    isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-                }`}
-            >
-                <div>
-                    <div className="hidden md:flex bg-slate-100/80 border border-slate-200 rounded-2xl p-4 mb-6 items-center gap-3">
-                        <img src="/images/logo.jpg" alt="Logo" className="w-12 h-12 rounded-xl object-cover shadow-md shrink-0" onError={(e) => { e.target.style.display = 'none'; }} />
-                        <div className="min-w-0">
-                            <h2 className="text-base font-black text-slate-900 leading-tight">Smart Kids</h2>
-                            <p className="text-[10px] text-amber-600 font-bold tracking-wider uppercase mt-0.5">Parent Portal</p>
-                        </div>
-                    </div>
-
-                    <nav className="space-y-1.5">
-                        {navItems.map((item) => (
-                            <Link
-                                key={item.name}
-                                href={item.href}
-                                onClick={() => setIsMobileMenuOpen(false)}
-                                className={`w-full flex items-center gap-3.5 px-4 py-2.5 rounded-2xl font-bold text-sm transition-all ${
-                                    item.active
-                                        ? 'bg-amber-400 text-amber-950 shadow-md shadow-amber-400/20'
-                                        : 'text-slate-600 hover:text-amber-600 hover:bg-slate-100/80'
-                                }`}
-                            >
-                                <span className="text-base">{item.icon}</span>
-                                <span>{item.name}</span>
-                            </Link>
-                        ))}
-                    </nav>
-                </div>
-
-                <div className="pt-6 border-t border-slate-200 mt-6">
-                    <Link href="/logout" method="post" as="button" className="w-full flex items-center gap-3.5 px-4 py-2.5 rounded-xl font-bold text-sm text-rose-600 hover:bg-rose-50 transition-all text-left">
-                        <span>🚪</span> <span>Logout</span>
-                    </Link>
-                </div>
-            </aside>
-
-            {/* MAIN CONTENT */}
-            <main className="flex-1 flex flex-col min-w-0 bg-slate-50">
-                <header className="hidden md:flex h-20 bg-white border-b border-slate-200 px-8 items-center justify-between sticky top-0 z-20 shadow-sm">
-                    <div>
-                        <span className="text-xs font-bold text-amber-600 uppercase tracking-wider">Child Daily Activities</span>
-                        <h1 className="text-lg font-black text-slate-900">Learning Log</h1>
-                    </div>
-
-                    <div className="flex items-center gap-3 bg-amber-50/80 border border-amber-200 px-4 py-2 rounded-2xl">
-                        <div className="w-8 h-8 rounded-xl bg-amber-400 text-amber-950 font-black flex items-center justify-center text-xs shadow-sm">
-                            {userEmail.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="text-left">
-                            <p className="text-xs font-black text-slate-900">{userName}</p>
-                            <p className="text-[11px] font-semibold text-amber-700">{userEmail}</p>
-                        </div>
-                    </div>
-                </header>
+            <main className="w-full">
 
                 <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full space-y-6">
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -345,6 +251,6 @@ export default function ParentLearningLog({ childrenList = [], initialLogs = [],
                     </div>
                 </div>
             </main>
-        </div>
+        </AuthenticatedLayoutParent>
     );
 }

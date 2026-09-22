@@ -30,30 +30,75 @@ class User extends Authenticatable
         'password' => 'hashed',
     ];
 
+    /**
+     * Parent profile connected to this user.
+     */
     public function parent()
     {
-        return $this->hasOne(ParentsModel::class, 'user_id', 'user_id');
-    }
-
-    public function students()
-    {
-        return $this->belongsToMany(
-            Student::class,
-            'parent_student',
-            'parent_id',    // Foreign key pada jadual parent_student
-            'student_id',   // Foreign key pada jadual parent_student
-            'user_id',      // Local key pada jadual users
-            'student_id'    // Related key pada jadual students
+        return $this->hasOne(
+            ParentsModel::class,
+            'user_id',
+            'user_id'
         );
     }
 
+    /**
+     * Teacher profile connected to this user.
+     */
     public function teacher()
     {
-        return $this->hasOne(Teacher::class, 'user_id', 'user_id');
+        return $this->hasOne(
+            Teacher::class,
+            'user_id',
+            'user_id'
+        );
     }
 
+    /**
+     * Admin profile connected to this user.
+     */
     public function admin()
     {
-        return $this->hasOne(Admin::class, 'user_id', 'user_id');
+        return $this->hasOne(
+            Admin::class,
+            'user_id',
+            'user_id'
+        );
     }
+
+    /**
+ * Conversations where this user is the parent.
+ */
+public function parentConversations()
+{
+    return $this->hasMany(
+        Conversation::class,
+        'parent_id',
+        'user_id'
+    );
+}
+
+/**
+ * Conversations where this user is the teacher.
+ */
+public function teacherConversations()
+{
+    return $this->hasMany(
+        Conversation::class,
+        'teacher_id',
+        'user_id'
+    );
+}
+
+/**
+ * Messages sent by this user.
+ */
+public function sentMessages()
+{
+    return $this->hasMany(
+        Message::class,
+        'sender_id',
+        'user_id'
+    );
+}
 }

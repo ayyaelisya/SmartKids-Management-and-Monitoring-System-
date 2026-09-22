@@ -14,7 +14,7 @@ use Inertia\Response;
 class AuthenticatedSessionController extends Controller
 {
     /**
-     * Display the login view.
+     * Display the login page.
      */
     public function create(): Response
     {
@@ -25,54 +25,80 @@ class AuthenticatedSessionController extends Controller
     }
 
     /**
-     * Handle an incoming authentication request.
+     * Handle the login request.
      */
     public function store(LoginRequest $request): RedirectResponse
     {
+        // Check the email and password first.
         $request->authenticate();
 
         $user = Auth::user();
 
-        // Parent accounts must be approved by an administrator before they can log in.
-        if ($user->role === 'parent' && $user->status !== 'active') {
+        // A parent must be approved before accessing the system.
+        if (
+            $user->role === 'parent' &&
+            $user->status !== 'active'
+        ) {
             $message = match ($user->status) {
-                'pending' => 'Your account is pending admin approval.',
-                'rejected' => 'Your registration has been rejected. Please contact the administrator.',
-                default => 'Your account is not active. Please contact the administrator.',
+                'pending' =>
+                    'Your account is pending admin approval.',
+
+                'rejected' =>
+                    'Your registration has been rejected. Please contact the administrator.',
+
+                default =>
+                    'Your account is not active. Please contact the administrator.',
             };
 
+            // Remove the temporary authenticated session.
             Auth::guard('web')->logout();
+
             $request->session()->invalidate();
             $request->session()->regenerateToken();
 
             return redirect()
                 ->route('login')
-                ->withErrors(['email' => $message])
-                ->withInput($request->only('email'));
+                ->withErrors([
+                    'email' => $message,
+                ])
+                ->withInput(
+                    $request->only('email')
+                );
         }
 
+        // Prevent session fixation after successful login.
         $request->session()->regenerate();
 
-        // Redirect users to the dashboard for their role.
+        // Redirect according to the user's role.
         return match ($user->role) {
-            'admin'   => redirect()->route('dashboard'),
-            'teacher' => redirect()->route('teacher.dashboard'),
-            'parent'  => redirect()->route('parent.dashboard'),
-            default   => redirect()->route('dashboard'),
+            'admin' =>
+                redirect()->route('dashboard'),
+
+            'teacher' =>
+                redirect()->route('teacher.dashboard'),
+
+            'parent' =>
+                redirect()->route('parent.dashboard'),
+
+            default =>
+                redirect()->route('login')
+                    ->withErrors([
+                        'email' => 'Invalid account role.',
+                    ]),
         };
     }
 
     /**
-     * Destroy an authenticated session.
+     * Log the user out.
      */
     public function destroy(Request $request): RedirectResponse
     {
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();
-
         $request->session()->regenerateToken();
 
-        return redirect('/');
+        return redirect()
+            ->route('login');
     }
 }

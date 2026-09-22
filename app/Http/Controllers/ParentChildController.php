@@ -10,11 +10,16 @@ class ParentChildController extends Controller
 {
     public function childProfile(Request $request)
     {
-        $parent = $request->user();
+            $user = $request->user();
 
-        // 1. Ambil semua data anak di bawah ibu bapa ini
-        $children = $parent->students()
-            ->get()
+            $parent = $user->parent;
+
+            if (! $parent) {
+                abort(403, 'Parent profile was not found.');
+            }
+
+            $children = $parent->students()
+                ->get()
             ->map(function ($child) {
                 return [
                     // Critical Details (Read-Only di Frontend)
@@ -81,10 +86,17 @@ class ParentChildController extends Controller
 
     public function updateChildProfile(Request $request, int $id)
     {
-        $parent = $request->user();
+        $user = $request->user();
 
-        // Sahkan anak adalah milik ibu bapa yang sedang log masuk
-        $student = $parent->students()->where('students.student_id', $id)->firstOrFail();
+        $parent = $user->parent;
+
+        if (! $parent) {
+            abort(403, 'Parent profile was not found.');
+        }
+
+        $student = $parent->students()
+            ->where('students.student_id', $id)
+            ->firstOrFail();
 
         // Validasi medan yang dibenarkan untuk dikemas kini sahaja
         $validated = $request->validate([

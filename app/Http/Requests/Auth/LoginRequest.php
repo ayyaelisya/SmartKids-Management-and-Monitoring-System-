@@ -2,9 +2,7 @@
 
 namespace App\Http\Requests\Auth;
 
-use App\Models\User;
 use Illuminate\Auth\Events\Lockout;
-use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
@@ -13,45 +11,52 @@ use Illuminate\Validation\ValidationException;
 
 class LoginRequest extends FormRequest
 {
+    /**
+     * Determine whether the user can make this request.
+     */
     public function authorize(): bool
     {
         return true;
     }
 
+    /**
+     * Login validation rules.
+     *
+     * @return array<string, array<int, string>>
+     */
     public function rules(): array
     {
         return [
-            'email' => ['required', 'string', 'email'],
-            'password' => ['required', 'string'],
+            'email' => [
+                'required',
+                'string',
+                'email',
+            ],
+
+            'password' => [
+                'required',
+                'string',
+            ],
         ];
     }
 
+    /**
+     * Authenticate the submitted email and password.
+     *
+     * Status checking is handled by
+     * AuthenticatedSessionController after the credentials
+     * have been successfully verified.
+     */
     public function authenticate(): void
     {
         $this->ensureIsNotRateLimited();
 
-        // Find user account by email
-        $user = User::where('email', $this->email)->first();
-
-        // Prevent pending accounts from logging in
-        if ($user && $user->status === 'pending') {
-            throw ValidationException::withMessages([
-                'email' => 'Your account is pending admin approval. Please wait until your account has been approved.',
-            ]);
-        }
-
-        // Prevent inactive accounts from logging in
-        if ($user && $user->status !== 'active') {
-            throw ValidationException::withMessages([
-                'email' => 'Your account is not active. Please contact the administrator.',
-            ]);
-        }
-
-        // Authenticate active user
-        if (! Auth::attempt(
+        $credentialsAreValid = Auth::attempt(
             $this->only('email', 'password'),
             $this->boolean('remember')
-        )) {
+        );
+
+        if (! $credentialsAreValid) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
@@ -62,15 +67,25 @@ class LoginRequest extends FormRequest
         RateLimiter::clear($this->throttleKey());
     }
 
+    /**
+     * Ensure the login request is not rate limited.
+     */
     public function ensureIsNotRateLimited(): void
     {
-        if (! RateLimiter::tooManyAttempts($this->throttleKey(), 5)) {
+        if (
+            ! RateLimiter::tooManyAttempts(
+                $this->throttleKey(),
+                5
+            )
+        ) {
             return;
         }
 
         event(new Lockout($this));
 
-        $seconds = RateLimiter::availableIn($this->throttleKey());
+        $seconds = RateLimiter::availableIn(
+            $this->throttleKey()
+        );
 
         throw ValidationException::withMessages([
             'email' => trans('auth.throttle', [
@@ -80,10 +95,15 @@ class LoginRequest extends FormRequest
         ]);
     }
 
+    /**
+     * Generate the rate-limiting key.
+     */
     public function throttleKey(): string
     {
         return Str::transliterate(
-            Str::lower($this->string('email')).'|'.$this->ip()
+            Str::lower($this->string('email')) .
+            '|' .
+            $this->ip()
         );
     }
 }

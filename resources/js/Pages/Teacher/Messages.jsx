@@ -22,6 +22,7 @@ export default function Messages({
         if (!keyword) return conversations;
         return conversations.filter((item) =>
             item.other_user?.name?.toLowerCase().includes(keyword) ||
+            item.other_user?.email?.toLowerCase().includes(keyword) ||
             item.student?.name?.toLowerCase().includes(keyword) ||
             item.latest_message?.toLowerCase().includes(keyword)
         );
@@ -123,6 +124,7 @@ export default function Messages({
                                     <div className="min-w-0 flex-1">
                                         <div className="flex items-center justify-between gap-2"><p className="truncate text-xs font-black text-slate-900">{conversation.other_user?.name}</p><span className="shrink-0 text-[9px] font-semibold text-slate-400">{date(conversation.last_message_at)}</span></div>
                                         <p className="mt-0.5 truncate text-[10px] font-bold text-[#527A5D]">Student: {conversation.student?.name}</p>
+                                        <p className="truncate text-[10px] text-slate-500">{conversation.other_user?.email}</p>
                                         <div className="mt-1 flex items-center justify-between gap-2"><p className="truncate text-[10px] text-slate-500">{conversation.latest_message}</p>{conversation.unread_count > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-black text-white">{conversation.unread_count}</span>}</div>
                                     </div>
                                 </div>
@@ -137,7 +139,7 @@ export default function Messages({
                     ) : <>
                         <div className="flex items-center gap-3 border-b border-slate-200 px-5 py-4">
                             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 font-black text-amber-700">{selectedConversation.other_user?.name?.charAt(0)?.toUpperCase() || 'P'}</div>
-                            <div><h2 className="text-sm font-black text-slate-900">{selectedConversation.other_user?.name}</h2><p className="text-[10px] font-bold text-[#527A5D]">Regarding {selectedConversation.student?.name} · {selectedConversation.student?.class_name || 'No class'}</p></div>
+                            <div><h2 className="text-sm font-black text-slate-900">{selectedConversation.other_user?.name}</h2><p className="text-[10px] text-slate-500">{selectedConversation.other_user?.email}</p><p className="text-[10px] font-bold text-[#527A5D]">Regarding {selectedConversation.student?.name} · {selectedConversation.student?.class_name || 'No class'}</p></div>
                         </div>
 
                         {flash?.success && <div className="mx-5 mt-3 rounded-xl bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-700">{flash.success}</div>}

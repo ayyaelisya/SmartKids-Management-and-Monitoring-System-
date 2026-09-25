@@ -100,6 +100,7 @@ class MessagingController extends Controller
 
         $children = collect();
         $teachers = collect();
+        $parentStudentList = collect();
 
         if ($user->role === 'parent') {
             $parentProfile = $user->parent;
@@ -123,6 +124,20 @@ class MessagingController extends Controller
                         'email',
                     ]);
             }
+        } else {
+            $parentStudentList = DB::table('parent_student')
+                ->join('parents', 'parents.parent_id', '=', 'parent_student.parent_id')
+                ->join('users', 'users.user_id', '=', 'parents.user_id')
+                ->join('students', 'students.student_id', '=', 'parent_student.student_id')
+                ->where('users.role', 'parent')
+                ->where('users.status', 'active')
+                ->where('students.is_active', 1)
+                ->select('users.user_id as parent_id', 'users.email as parent_email',
+                    'students.student_id', 'students.full_name as student_name')
+                ->orderBy('students.full_name')
+                ->orderBy('users.email')
+                ->distinct()
+                ->get();
         }
 
         $page = $user->role === 'parent'
@@ -166,7 +181,47 @@ class MessagingController extends Controller
                     ];
                 })
                 ->values(),
+            'parentStudentList' => $parentStudentList,
         ]);
+    }
+
+    /** Open a conversation for a student and their linked parent. */
+    public function storeTeacherConversation(Request $request)
+    {
+        $user = Auth::user();
+        if ($user->role !== 'teacher') {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'parent_id' => ['required', 'integer', Rule::exists('users', 'user_id')],
+            'student_id' => ['required', 'integer', Rule::exists('students', 'student_id')],
+        ]);
+
+        $linked = DB::table('parent_student')
+            ->join('parents', 'parents.parent_id', '=', 'parent_student.parent_id')
+            ->join('users', 'users.user_id', '=', 'parents.user_id')
+            ->join('students', 'students.student_id', '=', 'parent_student.student_id')
+            ->where('users.user_id', $validated['parent_id'])
+            ->where('users.role', 'parent')
+            ->where('users.status', 'active')
+            ->where('students.student_id', $validated['student_id'])
+            ->where('students.is_active', 1)
+            ->exists();
+
+        if (! $linked) {
+            return back()->withErrors(['parent_id' => 'Select a parent linked to this student.']);
+        }
+
+        $conversation = Conversation::firstOrCreate([
+            'parent_id' => $validated['parent_id'],
+            'teacher_id' => $user->user_id,
+            'student_id' => $validated['student_id'],
+        ]);
+
+        return redirect()->route('teacher.messages.index', [
+            'conversation_id' => $conversation->id,
+        ])->with('success', 'Conversation opened successfully.');
     }
 
     /**
@@ -421,6 +476,7 @@ class MessagingController extends Controller
                     $otherUser?->full_name
                     ?? 'Unknown User',
                 'role' => $otherUser?->role,
+                'email' => $otherUser?->email,
             ],
 
             'latest_message' =>
@@ -475,6 +531,7 @@ class MessagingController extends Controller
                     $otherUser?->full_name
                     ?? 'Unknown User',
                 'role' => $otherUser?->role,
+                'email' => $otherUser?->email,
             ],
 
             'messages' => $conversation->messages

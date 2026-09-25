@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Menu } from 'lucide-react';
+import { Link } from '@inertiajs/react';
 import SidebarParent from '@/Components/SidebarParent';
 
 export default function AuthenticatedLayoutParent({
@@ -11,8 +11,31 @@ export default function AuthenticatedLayoutParent({
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isMobileOpen, setIsMobileOpen] = useState(false);
 
+    const mobileNav = [
+        {
+            id: 'dashboard',
+            label: 'Home',
+            href: '/parent/dashboard',
+        },
+        {
+            id: 'attendance',
+            label: 'Attendance',
+            href: '/parent/attendance',
+        },
+        {
+            id: 'learning-log',
+            label: 'Progress',
+            href: '/parent/learning-log',
+        },
+        {
+            id: 'announcements',
+            label: 'Notices',
+            href: '/parent/announcements',
+        },
+    ];
+
     return (
-        <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
+        <div className="min-h-screen bg-[#FFF9E9] font-sans text-[#302C22]">
             <SidebarParent
                 activeNavId={activeNavId}
                 isCollapsed={isCollapsed}
@@ -24,34 +47,52 @@ export default function AuthenticatedLayoutParent({
             />
 
             <div
-                className={`min-h-screen transition-all duration-300 ${
+                className={`min-h-screen ${
                     isCollapsed ? 'lg:ml-20' : 'lg:ml-64'
                 }`}
             >
-                <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-slate-200 bg-white/95 px-4 shadow-sm backdrop-blur sm:px-6 lg:h-20 lg:px-8">
-                    <button
-                        type="button"
-                        onClick={() => setIsMobileOpen(true)}
-                        className="rounded-xl border border-slate-200 p-2 text-slate-600 hover:bg-slate-100 lg:hidden"
-                        aria-label="Open navigation"
-                    >
-                        <Menu className="h-5 w-5" />
-                    </button>
+                {/* Mobile app header */}
+                <header className="sticky top-0 z-30 border-b border-[#E9DEC3] bg-[#FFF9E9] lg:hidden">
+                    <div className="flex h-[68px] items-center justify-between gap-3 px-4">
+                        <div className="min-w-0">
+                            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#806300]">
+                                {pageSubtitle}
+                            </p>
+                            <h1 className="truncate text-lg font-bold leading-6">
+                                {pageTitle}
+                            </h1>
+                        </div>
 
-                    <div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 sm:text-xs">
-                            {pageSubtitle}
-                        </span>
-                        <h1 className="text-base font-black text-slate-900 sm:text-lg">
-                            {pageTitle}
-                        </h1>
+                        <button
+                            type="button"
+                            onClick={() => setIsMobileOpen(true)}
+                            aria-label="Open navigation menu"
+                            className="flex h-11 w-11 shrink-0 flex-col items-center justify-center gap-[5px] rounded-xl border border-[#E9DEC3] bg-[#FFFEFA] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B08300]"
+                        >
+                            <span className="h-[2px] w-[18px] bg-[#302C22]" />
+                            <span className="h-[2px] w-[18px] bg-[#302C22]" />
+                            <span className="h-[2px] w-[18px] bg-[#302C22]" />
+                        </button>
                     </div>
                 </header>
 
-                <main className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">
+                {/* Desktop header */}
+                <header className="hidden h-[72px] items-center border-b border-[#E9DEC3] bg-[#FFF9E9] px-8 lg:flex">
+                    <div>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#806300]">
+                            {pageSubtitle}
+                        </p>
+                        <h1 className="text-xl font-bold">{pageTitle}</h1>
+                    </div>
+                </header>
+
+                {/* Extra bottom space keeps content above the mobile navigation */}
+                <main className="mx-auto w-full max-w-[1200px] px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:pb-10 lg:pt-8">
                     {children}
                 </main>
             </div>
+
+
         </div>
     );
 }

@@ -4,28 +4,29 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Models\ParentsModel;
-use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rules;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class RegisteredUserController extends Controller
 {
-    // Display parent registration form
-    public function create(): Response
+    public function create(Request $request): Response
     {
-        return Inertia::render('Auth/Register');
+        $pending = $request->session()->get('pending_parent_registration');
+
+        return Inertia::render('Auth/Register', [
+            'verificationEmail' => $pending['email'] ?? null,
+            'status' => session('status'),
+        ]);
     }
 
-    // Register a new parent account
     public function store(Request $request): RedirectResponse
     {
-        $request->validate([
+        $validated = $request->validate([
             'full_name'    => 'required|string|max:255',
             'email'        => 'required|string|lowercase|email|max:255|unique:users,email',
             'phone_number' => 'required|string|max:20',
@@ -36,35 +37,35 @@ class RegisteredUserController extends Controller
             'password'     => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
-        DB::transaction(function () use ($request) {
+        $code = (string) random_int(100000, 999999);
 
-            // Create parent user account
-            $user = User::create([
-                'full_name'    => $request->full_name,
-                'email'        => $request->email,
-                'phone_number' => $request->phone_number,
-                'password'     => Hash::make($request->password),
-                'role'         => 'parent',
-                'status'       => 'pending',
-            ]);
+        // Hantar e-mel dahulu. Jika gagal, tiada akaun dicipta.
+        Mail::raw(
+            "Your SmartKids verification code is: {$code}\n\n"
+            . "This code expires in 10 minutes. Do not share it.",
+            function ($message) use ($validated) {
+                $message
+                    ->to($validated['email'])
+                    ->subject('SmartKids Email Verification Code');
+            }
+        );
 
-            // Save parent and child reference information
-            ParentsModel::create([
-                'user_id'      => $user->user_id,
-                'relationship' => $request->relationship,
-                'address'      => $request->address,
-                'child_name'   => $request->child_name,
-                'child_ic'     => $request->child_ic,
-            ]);
+        // Simpan sementara dalam sesi. Password disimpan sebagai hash.
+        $request->session()->put('pending_parent_registration', [
+            'full_name' => $validated['full_name'],
+            'email' => $validated['email'],
+            'phone_number' => $validated['phone_number'],
+            'relationship' => $validated['relationship'],
+            'address' => $validated['address'],
+            'child_name' => $validated['child_name'],
+            'child_ic' => $validated['child_ic'],
+            'password_hash' => Hash::make($validated['password']),
+            'code_hash' => Hash::make($code),
+            'expires_at' => now()->addMinutes(10)->timestamp,
+            'attempts' => 0,
+            'last_sent_at' => now()->timestamp,
+        ]);
 
-            event(new Registered($user));
-        });
-
-        return redirect()
-            ->route('login')
-            ->with(
-                'status',
-                'Registration successful! Your account is pending admin approval.'
-            );
+        return redirect()->route('register');
     }
 }

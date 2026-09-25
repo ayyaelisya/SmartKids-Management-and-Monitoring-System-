@@ -14,7 +14,7 @@ class LearningLog extends Model
         'teacher_name',
         'category',
         'time',
-        'date', // atau 'date' mengikut struktur DB anda
+        'log_date', // atau 'date' mengikut struktur DB anda
         'activity_data',
         'text',
         'image',
@@ -28,6 +28,10 @@ class LearningLog extends Model
 
     public function student()
     {
-        return $this->belongsTo(Student::class);
+        return $this->belongsTo(
+            Student::class,
+            'student_id',
+            'student_id'
+        );
     }
 }

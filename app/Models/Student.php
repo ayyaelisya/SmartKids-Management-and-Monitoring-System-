@@ -71,7 +71,14 @@ class Student extends Model
         // Medical Information
         'allergies',
         'medical_notes',
+
+        'is_active',
+        'exit_reason',
     ];
+
+    protected $casts = [
+    'is_active' => 'boolean',
+];
 
     // Attendance records
     public function attendances()

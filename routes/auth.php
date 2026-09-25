@@ -15,6 +15,17 @@ Route::middleware('guest')->group(function () {
     Route::get('register', [RegisteredUserController::class, 'create'])
         ->name('register');
 
+        Route::get('verify-email-code', [VerifyEmailController::class, 'show'])
+    ->name('verification.code.notice');
+
+Route::post('verify-email-code', [VerifyEmailController::class, 'verify'])
+    ->middleware('throttle:10,1')
+    ->name('verification.code.verify');
+
+Route::post('verify-email-code/resend', [VerifyEmailController::class, 'resend'])
+    ->middleware('throttle:6,1')
+    ->name('verification.code.resend');
+
     Route::post('register', [RegisteredUserController::class, 'store']);
 
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
@@ -39,9 +50,7 @@ Route::middleware('auth')->group(function () {
     Route::get('verify-email', EmailVerificationPromptController::class)
         ->name('verification.notice');
 
-    Route::get('verify-email/{id}/{hash}', VerifyEmailController::class)
-        ->middleware(['signed', 'throttle:6,1'])
-        ->name('verification.verify');
+
 
     Route::post('email/verification-notification', [EmailVerificationNotificationController::class, 'store'])
         ->middleware('throttle:6,1')

@@ -19,6 +19,8 @@ use App\Http\Controllers\AdminStudentQrController;
 use App\Http\Controllers\ParentAttendanceController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\MessagingController;
+use App\Http\Controllers\TeacherDashboardController;
+use App\Http\Controllers\TeacherClassController;
 
 
 // Public / Guest Routes
@@ -198,10 +200,16 @@ Route::delete(
 
             // Teacher Dashboard
 
-            Route::get('/dashboard', function () {
-                return Inertia::render('Teacher/TeacherDashboard');
-            })->name('dashboard');
+            Route::get(
+                '/dashboard',
+                [TeacherDashboardController::class, 'index']
+            )->name('dashboard');
 
+            //teacherclasses
+            Route::get(
+                '/classes',
+                [TeacherClassController::class, 'index']
+            )->name('classes.index');
 
             // Learning Log
 
@@ -224,6 +232,8 @@ Route::delete(
                 '/learning-log/{id}',
                 [LearningLogController::class, 'destroy']
             )->name('learning-log.destroy');
+
+
 
 
             // Teacher Attendance

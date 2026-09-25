@@ -256,7 +256,15 @@ export default function AttendanceManagement({
         }
 
         // Do not allow an existing absence record to be overwritten by QR.
-        if (scannedStudent.status === 'Absent') {
+        // Hanya Absent automatik tanpa alasan boleh dibetulkan melalui scan.
+            if (
+                scannedStudent.status === 'Absent' &&
+                !(
+                    scannedStudent.method === 'Automatic' &&
+                    !scannedStudent.absence_reason &&
+                    !scannedStudent.absence_attachment
+                )
+            ) {
             setScanResult({
                 type: 'invalid',
                 message: `${scannedStudent.name} has already been marked absent for this date.`,
@@ -1125,9 +1133,6 @@ export default function AttendanceManagement({
                                 <option value="Present">
                                     Present
                                 </option>
-                                <option value="Late">
-                                    Late
-                                </option>
                                 <option value="Absent">
                                     Absent
                                 </option>
@@ -1345,18 +1350,7 @@ export default function AttendanceManagement({
                                                                     Present
                                                                 </button>
 
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() =>
-                                                                        handleManualStatusUpdate(
-                                                                            student.id,
-                                                                            'Late'
-                                                                        )
-                                                                    }
-                                                                    className="px-2 py-1 bg-[#E8B85C]/10 text-[#E8B85C] hover:bg-[#E8B85C] hover:text-white rounded-lg font-bold text-[10px]"
-                                                                >
-                                                                    Late
-                                                                </button>
+
 
                                                                 <button
                                                                     type="button"

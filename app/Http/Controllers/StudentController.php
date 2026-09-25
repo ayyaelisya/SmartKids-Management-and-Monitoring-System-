@@ -2,12 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Student;
 use App\Models\Package;
+use App\Models\Student;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
-use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
 
 class StudentController extends Controller
 {
@@ -42,7 +43,6 @@ class StudentController extends Controller
                 return $student;
             });
 
-        // Get active packages
         $packages = Package::where('status', 'active')
             ->orderBy('age_group')
             ->orderBy('monthly_fee')
@@ -75,7 +75,6 @@ class StudentController extends Controller
             'birth_order' => 'nullable|integer',
             'total_siblings' => 'nullable|integer',
 
-            // Kindergarten Information
             'class_name' => 'required|string',
             'age_category' => 'nullable|string',
             'package_id' => 'required|exists:packages,package_id',
@@ -105,7 +104,6 @@ class StudentController extends Controller
             'emergency_contact_phone' => 'nullable|string',
             'emergency_contact_relationship' => 'nullable|string',
 
-            // Keep existing field for compatibility
             'selected_service' => 'nullable|string',
             'referral_source' => 'nullable|string',
 
@@ -113,21 +111,21 @@ class StudentController extends Controller
             'medical_notes' => 'nullable|string',
         ]);
 
+        // Isi medan guardian sebelum menyimpan fail gambar atau rekod.
+        $validated = $this->syncPrimaryGuardian($validated);
+
         if ($request->hasFile('profile_image')) {
             $validated['profile_photo_path'] = $request
                 ->file('profile_image')
                 ->store('students/avatars', 'public');
         }
 
-        // Get selected package
         $package = Package::findOrFail($validated['package_id']);
 
-        // Keep selected_service synchronized for existing pages
         $validated['selected_service'] = $package->package_name;
-
-        // Keep age category synchronized with package
         $validated['age_category'] = $package->age_group;
-
+        $validated['is_active'] = true;
+        $validated['exit_reason'] = null;
         Student::create($validated);
 
         return redirect()
@@ -142,7 +140,7 @@ class StudentController extends Controller
             'profile_image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
 
             'full_name' => 'required|string|max:255',
-
+'student_status' => 'required|in:Active,Withdrawn,Graduated',
             'ic_number' => [
                 'nullable',
                 'string',
@@ -165,7 +163,6 @@ class StudentController extends Controller
             'birth_order' => 'nullable|integer',
             'total_siblings' => 'nullable|integer',
 
-            // Kindergarten Information
             'class_name' => 'required|string',
             'age_category' => 'nullable|string',
             'package_id' => 'required|exists:packages,package_id',
@@ -202,6 +199,8 @@ class StudentController extends Controller
             'medical_notes' => 'nullable|string',
         ]);
 
+        $validated = $this->syncPrimaryGuardian($validated, $student);
+
         if ($request->hasFile('profile_image')) {
             if (
                 $student->profile_photo_path &&
@@ -217,13 +216,17 @@ class StudentController extends Controller
                 ->store('students/avatars', 'public');
         }
 
-        // Get selected package
         $package = Package::findOrFail($validated['package_id']);
 
-        // Synchronize existing fields
         $validated['selected_service'] = $package->package_name;
         $validated['age_category'] = $package->age_group;
+        $status = $validated['student_status'];
+        unset($validated['student_status']);
 
+        $validated['is_active'] = $status === 'Active';
+        $validated['exit_reason'] = $status === 'Active'
+            ? null
+            : $status;
         $student->update($validated);
 
         return redirect()
@@ -248,5 +251,58 @@ class StudentController extends Controller
         return redirect()
             ->back()
             ->with('success', 'Student record deleted successfully!');
+    }
+
+    /**
+     * The form groups primary guardian details under Father/Mother.
+     * The students table also requires separate guardian columns.
+     */
+    private function syncPrimaryGuardian(
+        array $validated,
+        ?Student $student = null
+    ): array {
+        $relationship = strtolower(trim(
+            $validated['guardian_relationship']
+                ?? $student?->guardian_relationship
+                ?? ''
+        ));
+
+        if ($relationship === 'father') {
+            $validated['guardian_name'] =
+                $validated['father_name']
+                ?? $student?->father_name;
+
+            $validated['guardian_phone'] =
+                $validated['father_phone']
+                ?? $student?->father_phone;
+        } elseif ($relationship === 'mother') {
+            $validated['guardian_name'] =
+                $validated['mother_name']
+                ?? $student?->mother_name;
+
+            $validated['guardian_phone'] =
+                $validated['mother_phone']
+                ?? $student?->mother_phone;
+        } else {
+            $validated['guardian_name'] =
+                $validated['guardian_name']
+                ?? $student?->guardian_name;
+
+            $validated['guardian_phone'] =
+                $validated['guardian_phone']
+                ?? $student?->guardian_phone;
+        }
+
+        if (
+            blank($validated['guardian_name']) ||
+            blank($validated['guardian_phone'])
+        ) {
+            throw ValidationException::withMessages([
+                'guardian_name' =>
+                    'Please provide the name and phone number of the selected primary guardian.',
+            ]);
+        }
+
+        return $validated;
     }
 }

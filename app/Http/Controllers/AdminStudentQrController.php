@@ -33,18 +33,23 @@ class AdminStudentQrController extends Controller
                 $student->save();
             }
 
-            return [
-                'student_id'    => $student->student_id,
-                'full_name'     => $student->full_name,
-                'name'          => $student->full_name,
-                'mykid'         => $student->mykid_number ?? $student->ic_number ?? '',
-                'class_name'    => $student->class_name,
-                'qr_code_token' => $student->qr_code_token,
-            ];
+return [
+    'student_id' => $student->student_id,
+    'full_name' => $student->full_name,
+    'name' => $student->full_name,
+    'mykid' => $student->mykid_number ?? $student->ic_number ?? '',
+    'class_name' => $student->class_name,
+    'qr_code_token' => $student->qr_code_token,
+
+    'profile_image_url' => $student->profile_photo_path
+        ? asset('storage/' . $student->profile_photo_path)
+        : null,
+];
         });
 
 return Inertia::render('StudentQrBadges', [
     'students' => $students,
+    'logoUrl'  => asset('images/logo.jpg'),
 ]);
     }
 }

@@ -1,406 +1,850 @@
-import React, { useState, useMemo } from 'react';
-import { Head, useForm, router } from '@inertiajs/react';
+import React, { useMemo, useState } from 'react';
+import { Head, useForm } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import {
-  Users, UserCheck, UserPlus, UserX, Search,
-  Eye, Edit3, Camera, X
+    Users,
+    UserCheck,
+    UserPlus,
+    UserX,
+    Search,
+    Eye,
+    Edit3,
+    Camera,
+    X,
 } from 'lucide-react';
 
-export default function StudentProfiles(props) {
-    const {
-        students = [],
-        packages = [],
-        filters = {}
-    } = props;
+const emptyForm = {
+    profile_image: null,
+    full_name: '',
+    ic_number: '',
+    date_of_birth: '',
+    birth_place: '',
+    gender: 'Boy',
+    favourite_food: '',
+    birth_order: '',
+    total_siblings: '',
+    class_name: '2 Years',
+    package_id: '',
+    guardian_relationship: 'Father',
+    guardian_name: '',
+    guardian_phone: '',
+    father_name: '',
+    father_ic_number: '',
+    father_phone: '',
+    father_occupation: '',
+    father_race: '',
+    father_nationality: 'Malaysian',
+    mother_name: '',
+    mother_ic_number: '',
+    mother_phone: '',
+    mother_occupation: '',
+    mother_race: '',
+    mother_nationality: 'Malaysian',
+    home_address: '',
+    email: '',
+    emergency_contact_name: '',
+    emergency_contact_phone: '',
+    emergency_contact_relationship: '',
+    referral_source: '',
+    allergies: '',
+    medical_notes: '',
+    student_status: 'Active',
+};
 
-    // MODAL & TABS MANAGEMENT STATE
+const inputClass =
+    'w-full rounded-lg border border-[#E2DFEE] bg-white p-2 text-[11px] text-[#2D3142] focus:border-[#6C63A8] focus:outline-none';
+
+const showValue = (value) =>
+    value === null || value === undefined || value === ''
+        ? 'N/A'
+        : String(value);
+
+const isActiveStudent = (student) =>
+    Number(student.is_active) === 1;
+
+function SectionTitle({ children }) {
+    return (
+        <h4 className="mb-3 border-b border-[#E2DFEE] pb-1 text-[10px] font-extrabold uppercase tracking-wider text-[#6C63A8]">
+            {children}
+        </h4>
+    );
+}
+
+function FormField({
+    label,
+    name,
+    value,
+    onChange,
+    error,
+    required = false,
+    type = 'text',
+    options,
+    textarea = false,
+    className = '',
+    min,
+}) {
+    return (
+        <div className={className}>
+            <label
+                htmlFor={name}
+                className="mb-1 block font-semibold text-[#2D3142]"
+            >
+                {label}
+                {required && (
+                    <span className="ml-1 font-bold text-red-600">*</span>
+                )}
+            </label>
+
+            {options ? (
+                <select
+                    id={name}
+                    name={name}
+                    value={value ?? ''}
+                    onChange={(event) => onChange(event.target.value)}
+                    required={required}
+                    className={inputClass}
+                >
+                    {options.map((option) => (
+                        <option key={option.value} value={option.value}>
+                            {option.label}
+                        </option>
+                    ))}
+                </select>
+            ) : textarea ? (
+                <textarea
+                    id={name}
+                    name={name}
+                    value={value ?? ''}
+                    onChange={(event) => onChange(event.target.value)}
+                    required={required}
+                    rows={3}
+                    className={inputClass}
+                />
+            ) : (
+                <input
+                    id={name}
+                    name={name}
+                    type={type}
+                    min={min}
+                    value={value ?? ''}
+                    onChange={(event) => onChange(event.target.value)}
+                    required={required}
+                    className={inputClass}
+                />
+            )}
+
+            {error && (
+                <p className="mt-1 text-[10px] text-red-600">{error}</p>
+            )}
+        </div>
+    );
+}
+
+function ProfileField({ label, value }) {
+    return (
+        <div className="rounded-xl bg-[#F7F6FC] p-3">
+            <p className="text-[10px] font-semibold text-[#6B7280]">
+                {label}
+            </p>
+            <p className="mt-1 break-words font-bold text-[#2D3142]">
+                {showValue(value)}
+            </p>
+        </div>
+    );
+}
+
+export default function StudentProfiles({
+    students = [],
+    packages = [],
+    filters = {},
+}) {
     const [isAddEditModalOpen, setIsAddEditModalOpen] = useState(false);
     const [isViewProfileOpen, setIsViewProfileOpen] = useState(false);
-
     const [editingStudent, setEditingStudent] = useState(null);
     const [viewingStudent, setViewingStudent] = useState(null);
     const [activeTab, setActiveTab] = useState('personal');
     const [imagePreview, setImagePreview] = useState(null);
 
-    // FILTER & SEARCH STATE
-    const [search, setSearch] = useState(filters?.search || '');
-    const [selectedClassFilter, setSelectedClassFilter] = useState(filters?.class_filter || '');
-    const [selectedStatusFilter, setSelectedStatusFilter] = useState('');
-    const [sortBy, setSortBy] = useState('name');
+    const [search, setSearch] = useState(filters.search || '');
+    const [selectedClassFilter, setSelectedClassFilter] = useState(
+        filters.class_filter || ''
+    );
 
-    // INERTIA FORM FOR ADD / EDIT
-    const { data, setData, post, processing, errors, reset, clearErrors } = useForm({
-        id: '',
-        profile_image: null,
+    // Paparan awal: Active. Kad lain menukar kategori senarai.
+    const [selectedCard, setSelectedCard] = useState('active');
+    const [exitFilter, setExitFilter] = useState('all');
 
-        // Student Information
-        full_name: '',
-        ic_number: '',
-        mykid_number: '',
-        date_of_birth: '',
-        birth_place: '',
-        gender: 'Boy',
-        favourite_food: '',
-        birth_order: '',
-        total_siblings: '',
+    const {
+        data,
+        setData,
+        post,
+        processing,
+        errors,
+        clearErrors,
+        reset,
+        transform,
+    } = useForm({ ...emptyForm });
 
-        // Kindergarten Information
-        class_name: '2 Years',
-        status: 'Active',
-        package_id: '',
+    const thirtyDaysAgo = useMemo(() => {
+        const date = new Date();
+        date.setDate(date.getDate() - 30);
+        return date;
+    }, []);
 
-        // Primary Guardian Information
-        guardian_name: '',
-        guardian_phone: '',
-        guardian_relationship: 'Father',
-
-        // Father's Information
-        father_name: '',
-        father_ic_number: '',
-        father_nationality: 'Malaysian',
-        father_race: '',
-        father_occupation: '',
-        father_phone: '',
-
-        // Mother's Information
-        mother_name: '',
-        mother_ic_number: '',
-        mother_nationality: 'Malaysian',
-        mother_race: '',
-        mother_occupation: '',
-        mother_phone: '',
-
-        // Contact Information
-        home_address: '',
-        email: '',
-
-        // Emergency Contact
-        emergency_contact_name: '',
-        emergency_contact_phone: '',
-        emergency_contact_relationship: '',
-
-        // Registration Information
-        selected_service: 'Full Day',
-        referral_source: '',
-
-        // Medical Information
-        allergies: '',
-        medical_notes: '',
-    });
-
-    // STATISTICAL SUMMARY CARDS
-    const stats = useMemo(() => {
-        return {
+    const stats = useMemo(
+        () => ({
             total: students.length,
-            active: students.filter(s => s.status === 'Active' || !s.status).length,
-            newStudents: students.filter(s => {
-                if (!s.created_at) return false;
-                const createdDate = new Date(s.created_at);
-                const thirtyDaysAgo = new Date();
-                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-                return createdDate >= thirtyDaysAgo;
-            }).length,
-            inactive: students.filter(s => s.status === 'Inactive' || s.status === 'Withdrawn' || s.status === 'Graduated').length,
-        };
-    }, [students]);
+            active: students.filter(isActiveStudent).length,
+            inactive: students.filter(
+                (student) => !isActiveStudent(student)
+            ).length,
+            newStudents: students.filter(
+                (student) =>
+                    isActiveStudent(student) &&
+                    student.created_at &&
+                    new Date(student.created_at) >= thirtyDaysAgo
+            ).length,
+        }),
+        [students, thirtyDaysAgo]
+    );
 
-    // SEARCH & FILTER HANDLER
     const filteredStudents = useMemo(() => {
-        return students.filter((s) => {
-            const matchesSearch =
-                (s.full_name || '').toLowerCase().includes(search.toLowerCase()) ||
-                (s.student_id || '').toLowerCase().includes(search.toLowerCase()) ||
-                (s.ic_number || '').toLowerCase().includes(search.toLowerCase());
+        const keyword = search.trim().toLowerCase();
 
-            const matchesClass = selectedClassFilter ? s.class_name === selectedClassFilter : true;
-            const matchesStatus = selectedStatusFilter ? (s.status || 'Active') === selectedStatusFilter : true;
+        const result = students
+            .filter((student) => {
+                if (selectedCard === 'active') {
+                    return isActiveStudent(student);
+                }
 
-            return matchesSearch && matchesClass && matchesStatus;
-        }).sort((a, b) => {
-            if (sortBy === 'name') return (a.full_name || '').localeCompare(b.full_name || '');
-            if (sortBy === 'enrollment') return new Date(b.created_at || 0) - new Date(a.created_at || 0);
-            return 0;
-        });
-    }, [students, search, selectedClassFilter, selectedStatusFilter, sortBy]);
+                if (selectedCard === 'inactive') {
+                    if (isActiveStudent(student)) return false;
 
-    // IMAGE HANDLER
-    const handleImageChange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            setData('profile_image', file);
-            setImagePreview(URL.createObjectURL(file));
+                    return (
+                        exitFilter === 'all' ||
+                        student.exit_reason === exitFilter
+                    );
+                }
+
+                if (selectedCard === 'new') {
+                    return (
+                        isActiveStudent(student) &&
+                        student.created_at &&
+                        new Date(student.created_at) >= thirtyDaysAgo
+                    );
+                }
+
+                return true;
+            })
+            .filter((student) => {
+                const matchesSearch =
+                    String(student.full_name || '')
+                        .toLowerCase()
+                        .includes(keyword) ||
+                    String(student.student_id || student.id || '')
+                        .toLowerCase()
+                        .includes(keyword) ||
+                    String(student.ic_number || '')
+                        .toLowerCase()
+                        .includes(keyword) ||
+                    String(student.mykid_number || '')
+                        .toLowerCase()
+                        .includes(keyword);
+
+                const matchesClass =
+                    !selectedClassFilter ||
+                    student.class_name === selectedClassFilter;
+
+                return matchesSearch && matchesClass;
+            })
+            .sort(
+                (a, b) =>
+                    new Date(b.created_at || 0) -
+                    new Date(a.created_at || 0)
+            );
+
+        // Senarai utama hanya 10 terkini.
+        // Search tetap boleh cari semua pelajar dalam kategori Active.
+        return selectedCard === 'active' && !keyword
+            ? result.slice(0, 10)
+            : result;
+    }, [
+        students,
+        search,
+        selectedClassFilter,
+        selectedCard,
+        exitFilter,
+        thirtyDaysAgo,
+    ]);
+
+    const selectedAgeGroup =
+        data.class_name === 'Tots Club'
+            ? '10-23 months'
+            : '2-4 years';
+
+    const availablePackages = packages.filter(
+        (item) => item.age_group === selectedAgeGroup
+    );
+
+    const selectedPackage = packages.find(
+        (item) => String(item.package_id) === String(data.package_id)
+    );
+
+    const viewedPackage = viewingStudent
+        ? viewingStudent.package ||
+          packages.find(
+              (item) =>
+                  String(item.package_id) ===
+                  String(viewingStudent.package_id)
+          )
+        : null;
+
+    const field = (name, value) => setData(name, value);
+
+    const renderField = (
+        label,
+        name,
+        {
+            required = false,
+            type = 'text',
+            options,
+            textarea = false,
+            className = '',
+            min,
+            onChange,
+        } = {}
+    ) => (
+        <FormField
+            key={name}
+            label={label}
+            name={name}
+            value={data[name]}
+            onChange={onChange || ((value) => field(name, value))}
+            error={errors[name]}
+            required={required}
+            type={type}
+            options={options}
+            textarea={textarea}
+            className={className}
+            min={min}
+        />
+    );
+
+    const renderProfileFields = (student, fields) =>
+        fields.map(([label, key]) => (
+            <ProfileField
+                key={key}
+                label={label}
+                value={student[key]}
+            />
+        ));
+
+    const closeAddEditModal = () => {
+        setIsAddEditModalOpen(false);
+
+        if (imagePreview?.startsWith('blob:')) {
+            URL.revokeObjectURL(imagePreview);
         }
+
+        setImagePreview(null);
     };
 
-    // OPEN ADD / EDIT MODAL
-    const handleOpenCreateModal = () => {
-        setEditingStudent(null);
-        setImagePreview(null);
-        reset();
+    const openCreateModal = () => {
         clearErrors();
+        setEditingStudent(null);
+
+        if (imagePreview?.startsWith('blob:')) {
+            URL.revokeObjectURL(imagePreview);
+        }
+
+        setImagePreview(null);
+        setData({ ...emptyForm });
         setIsAddEditModalOpen(true);
     };
 
-    const handleOpenEditModal = (student) => {
+    const openEditModal = (student) => {
+        clearErrors();
         setEditingStudent(student);
         setImagePreview(student.profile_image_url || null);
-        clearErrors();
-        setData({
-            id: student.student_id || student.id,
-            profile_image: null,
-            full_name: student.full_name || '',
-            ic_number: student.ic_number || '',
-            mykid_number: student.mykid_number || '',
-            date_of_birth: student.date_of_birth || '',
-            birth_place: student.birth_place || '',
-            gender: student.gender || 'Boy',
-            favourite_food: student.favourite_food || '',
-            birth_order: student.birth_order || '',
-            total_siblings: student.total_siblings || '',
 
-            class_name: student.class_name || '2 Years',
-            status: student.status || 'Active',
-            package_id: student.package_id
+        const populatedForm = Object.fromEntries(
+            Object.keys(emptyForm).map((name) => [
+                name,
+                name === 'profile_image'
+                    ? null
+                    : student[name] ?? emptyForm[name],
+            ])
+        );
+
+        populatedForm.package_id = student.package_id
             ? String(student.package_id)
-            : '',
+            : '';
 
-            guardian_name: student.guardian_name || '',
-            guardian_phone: student.guardian_phone || '',
-            guardian_relationship: student.guardian_relationship || 'Father',
+        populatedForm.student_status = isActiveStudent(student)
+            ? 'Active'
+            : student.exit_reason || 'Withdrawn';
 
-            father_name: student.father_name || '',
-            father_ic_number: student.father_ic_number || '',
-            father_nationality: student.father_nationality || 'Malaysian',
-            father_race: student.father_race || '',
-            father_occupation: student.father_occupation || '',
-            father_phone: student.father_phone || '',
-
-            mother_name: student.mother_name || '',
-            mother_ic_number: student.mother_ic_number || '',
-            mother_nationality: student.mother_nationality || 'Malaysian',
-            mother_race: student.mother_race || '',
-            mother_occupation: student.mother_occupation || '',
-            mother_phone: student.mother_phone || '',
-
-            home_address: student.home_address || '',
-            email: student.email || '',
-
-            emergency_contact_name: student.emergency_contact_name || '',
-            emergency_contact_phone: student.emergency_contact_phone || '',
-            emergency_contact_relationship: student.emergency_contact_relationship || '',
-
-            selected_service: student.selected_service || 'Full Day',
-            referral_source: student.referral_source || '',
-
-            allergies: student.allergies || '',
-            medical_notes: student.medical_notes || '',
-        });
+        setData(populatedForm);
         setIsAddEditModalOpen(true);
     };
 
-    const handleOpenViewProfile = (student) => {
+    const openViewModal = (student) => {
         setViewingStudent(student);
         setActiveTab('personal');
         setIsViewProfileOpen(true);
     };
 
-    // SUBMIT ADD / EDIT
-    const handleSubmitAddEdit = (e) => {
-        e.preventDefault();
-        if (editingStudent) {
-            router.post(`/students/${editingStudent.student_id || editingStudent.id}`, {
-                _method: 'put',
-                ...data
-            }, {
-                onSuccess: () => setIsAddEditModalOpen(false)
-            });
-        } else {
-            post('/students', {
-                onSuccess: () => setIsAddEditModalOpen(false)
-            });
+    const handleImageChange = (event) => {
+        const file = event.target.files?.[0];
+
+        if (!file) return;
+
+        if (imagePreview?.startsWith('blob:')) {
+            URL.revokeObjectURL(imagePreview);
         }
+
+        field('profile_image', file);
+        setImagePreview(URL.createObjectURL(file));
     };
 
-            // Get package age group based on selected class
-        const selectedAgeGroup =
-            data.class_name === 'Tots Club'
-                ? '10-23 months'
-                : '2-4 years';
+    const handleSubmit = (event) => {
+        event.preventDefault();
 
-        // Only show packages suitable for selected class
-        const availablePackages = packages.filter(
-            (pkg) => pkg.age_group === selectedAgeGroup
-        );
+        if (editingStudent) {
+            const studentId =
+                editingStudent.student_id || editingStudent.id;
+
+            // Laravel menerima PUT dengan _method apabila ada fail gambar.
+            transform((formData) => ({
+                ...formData,
+                _method: 'put',
+            }));
+
+            post(`/students/${studentId}`, {
+                forceFormData: true,
+                preserveScroll: true,
+                onSuccess: () => {
+                    closeAddEditModal();
+                    setEditingStudent(null);
+                    reset();
+                },
+                onFinish: () =>
+                    transform((formData) => formData),
+            });
+
+            return;
+        }
+
+        transform((formData) => formData);
+
+        post('/students', {
+            forceFormData: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                closeAddEditModal();
+                setEditingStudent(null);
+                reset();
+                setData({ ...emptyForm });
+            },
+        });
+    };
+
+    const fatherRequired =
+        data.guardian_relationship === 'Father';
+
+    const motherRequired =
+        data.guardian_relationship === 'Mother';
+
+    const guardianRequired =
+        data.guardian_relationship === 'Guardian';
+
+    const summaryCards = [
+        {
+            id: 'total',
+            label: 'Total Students',
+            value: stats.total,
+            icon: Users,
+            color: 'text-[#6C63A8]',
+        },
+        {
+            id: 'active',
+            label: 'Active',
+            value: stats.active,
+            icon: UserCheck,
+            color: 'text-green-600',
+        },
+        {
+            id: 'new',
+            label: 'New (30 Days)',
+            value: stats.newStudents,
+            icon: UserPlus,
+            color: 'text-orange-600',
+        },
+        {
+            id: 'inactive',
+            label: 'Inactive',
+            value: stats.inactive,
+            icon: UserX,
+            color: 'text-red-500',
+        },
+    ];
+
     return (
         <AuthenticatedLayout activeNavId="students">
             <Head title="SKMMS - Student Management" />
 
-            <div className="min-h-screen bg-[#EAE7F6] p-4 sm:p-6 lg:p-8 space-y-6">
-
+            <div className="min-h-screen space-y-6 bg-[#EAE7F6] p-4 sm:p-6 lg:p-8">
                 {/* HEADER */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl shadow-sm border border-[#E2DFEE]">
+                <div className="flex flex-col justify-between gap-4 rounded-2xl border border-[#E2DFEE] bg-white p-5 shadow-sm sm:flex-row sm:items-center">
                     <div>
-                        <h1 className="text-xl font-black text-[#2D3142] tracking-tight">Student Management</h1>
-                        <p className="text-[11px] font-medium text-[#6B7280] mt-0.5">
-                            Comprehensive management of kindergarten student profiles and parent registrations.
+                        <h1 className="text-xl font-black text-[#2D3142]">
+                            Student Management
+                        </h1>
+                        <p className="mt-1 text-[11px] text-[#6B7280]">
+                            Manage student profiles and registration.
                         </p>
                     </div>
 
                     <button
                         type="button"
-                        onClick={handleOpenCreateModal}
-                        className="px-4 py-2.5 bg-[#6C63A8] hover:bg-[#514A82] text-white font-extrabold text-[11px] rounded-xl transition-all shadow-xs flex items-center justify-center gap-2 active:scale-95 shrink-0"
+                        onClick={openCreateModal}
+                        className="flex items-center justify-center gap-2 rounded-xl bg-[#6C63A8] px-4 py-2.5 text-[11px] font-extrabold text-white hover:bg-[#514A82]"
                     >
-                        <UserPlus className="w-3.5 h-3.5" />
-                        <span>Enrol New Student</span>
+                        <UserPlus className="h-4 w-4" />
+                        Enrol New Student
                     </button>
                 </div>
 
-                {/* STATISTICS */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-[#E2DFEE] flex items-center gap-3">
-                        <div className="p-2.5 rounded-xl bg-[#6C63A8]/10 text-[#6C63A8]"><Users className="w-5 h-5" /></div>
-                        <div>
-                            <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">Total Students</span>
-                            <p className="text-xl font-black text-[#2D3142]">{stats.total}</p>
-                        </div>
-                    </div>
-                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-[#E2DFEE] flex items-center gap-3">
-                        <div className="p-2.5 rounded-xl bg-[#6FCF97]/20 text-[#219653]"><UserCheck className="w-5 h-5" /></div>
-                        <div>
-                            <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">Active</span>
-                            <p className="text-xl font-black text-[#2D3142]">{stats.active}</p>
-                        </div>
-                    </div>
-                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-[#E2DFEE] flex items-center gap-3">
-                        <div className="p-2.5 rounded-xl bg-[#F4A261]/20 text-[#D97706]"><UserPlus className="w-5 h-5" /></div>
-                        <div>
-                            <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">New (30 Days)</span>
-                            <p className="text-xl font-black text-[#2D3142]">{stats.newStudents}</p>
-                        </div>
-                    </div>
-                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-[#E2DFEE] flex items-center gap-3">
-                        <div className="p-2.5 rounded-xl bg-[#E76F6F]/15 text-[#E76F6F]"><UserX className="w-5 h-5" /></div>
-                        <div>
-                            <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">Inactive</span>
-                            <p className="text-xl font-black text-[#2D3142]">{stats.inactive}</p>
-                        </div>
-                    </div>
+                {/* CLICKABLE SUMMARY CARDS */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    {summaryCards.map((card) => {
+                        const Icon = card.icon;
+
+                        return (
+                            <button
+                                key={card.id}
+                                type="button"
+                                onClick={() => {
+                                    setSelectedCard(card.id);
+                                    setExitFilter('all');
+                                }}
+                                className={`flex items-center gap-3 rounded-2xl border bg-white p-4 text-left shadow-sm transition hover:border-[#6C63A8] hover:shadow-md ${
+                                    selectedCard === card.id
+                                        ? 'border-[#6C63A8] ring-2 ring-[#6C63A8]/20'
+                                        : 'border-[#E2DFEE]'
+                                }`}
+                            >
+                                <div
+                                    className={`rounded-xl bg-[#F7F6FC] p-2.5 ${card.color}`}
+                                >
+                                    <Icon className="h-5 w-5" />
+                                </div>
+
+                                <div>
+                                    <p className="text-[10px] font-bold uppercase text-[#6B7280]">
+                                        {card.label}
+                                    </p>
+                                    <p className="text-xl font-black text-[#2D3142]">
+                                        {card.value}
+                                    </p>
+                                </div>
+                            </button>
+                        );
+                    })}
                 </div>
 
-                {/* TABLE LIST */}
-                <div className="bg-white rounded-2xl shadow-sm border border-[#E2DFEE] overflow-hidden">
-                    <div className="p-4 border-b border-[#E2DFEE]">
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <div className="relative">
-                                <Search className="w-3.5 h-3.5 text-[#6B7280] absolute left-3 top-3" />
-                                <input
-                                    type="text"
-                                    placeholder="Search Name, MyKid, IC..."
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    className="w-full pl-9 pr-3 py-2 bg-[#F7F6FC] border border-[#E2DFEE] rounded-xl text-[11px] font-medium text-[#2D3142] focus:outline-hidden focus:border-[#6C63A8]"
-                                />
-                            </div>
-                            <select
-                                value={selectedClassFilter}
-                                onChange={(e) => setSelectedClassFilter(e.target.value)}
-                                className="py-2 px-3 bg-[#F7F6FC] border border-[#E2DFEE] rounded-xl text-[11px] font-medium text-[#2D3142] focus:outline-hidden focus:border-[#6C63A8]"
-                            >
-                                <option value="">All Classes</option>
-                                <option value="Tots Club">Tots Club</option>
-                                <option value="2 Years">2 Years</option>
-                                <option value="3 Years">3 Years</option>
-                                <option value="4 Years">4 Years</option>
-                            </select>
+                {/* STUDENT LIST */}
+                <div className="overflow-hidden rounded-2xl border border-[#E2DFEE] bg-white shadow-sm">
+                    <div className="grid grid-cols-1 gap-3 border-b border-[#E2DFEE] p-4 sm:grid-cols-3">
+                        <div className="relative sm:col-span-2">
+                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#6B7280]" />
+                            <input
+                                type="text"
+                                placeholder="Search name, student ID or IC / MyKid..."
+                                value={search}
+                                onChange={(event) =>
+                                    setSearch(event.target.value)
+                                }
+                                className={`${inputClass} pl-9`}
+                            />
                         </div>
+
+                        <select
+                            value={selectedClassFilter}
+                            onChange={(event) =>
+                                setSelectedClassFilter(event.target.value)
+                            }
+                            className={inputClass}
+                        >
+                            <option value="">All Classes</option>
+                            <option value="Tots Club">Tots Club</option>
+                            <option value="2 Years">2 Years</option>
+                            <option value="3 Years">3 Years</option>
+                            <option value="4 Years">4 Years</option>
+                        </select>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E2DFEE] px-4 py-3">
+                        <p className="text-[11px] font-bold text-[#2D3142]">
+                            {selectedCard === 'active' &&
+                                'Latest Active Students'}
+                            {selectedCard === 'total' &&
+                                'All Students'}
+                            {selectedCard === 'new' &&
+                                'New Active Students (30 Days)'}
+                            {selectedCard === 'inactive' &&
+                                'Inactive Students'}
+                        </p>
+
+                        {selectedCard === 'inactive' && (
+                            <select
+                                value={exitFilter}
+                                onChange={(event) =>
+                                    setExitFilter(event.target.value)
+                                }
+                                className="rounded-lg border border-[#E2DFEE] bg-white px-3 py-2 text-[11px]"
+                            >
+                                <option value="all">
+                                    All Inactive
+                                </option>
+                                <option value="Withdrawn">
+                                    Withdrawn
+                                </option>
+                                <option value="Graduated">
+                                    Graduated
+                                </option>
+                            </select>
+                        )}
                     </div>
 
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-[11px]">
-                            <thead className="bg-[#F7F6FC] text-[#6B7280] font-bold uppercase tracking-wider border-b border-[#E2DFEE]">
+                            <thead className="border-b border-[#E2DFEE] bg-[#F7F6FC] font-bold uppercase text-[#6B7280]">
                                 <tr>
-                                    <th className="py-3 px-5">Student</th>
-                                    <th className="py-3 px-5">MyKid / IC</th>
-                                    <th className="py-3 px-5">Class</th>
-                                    <th className="py-3 px-5">Primary Guardian</th>
-                                    <th className="py-3 px-5 text-right">Actions</th>
+                                    <th className="px-5 py-3">Student</th>
+                                    <th className="px-5 py-3">
+                                        IC / MyKid
+                                    </th>
+                                    <th className="px-5 py-3">Class</th>
+                                    <th className="px-5 py-3">
+                                        Status
+                                    </th>
+                                    <th className="px-5 py-3">
+                                        Primary Guardian
+                                    </th>
+                                    <th className="px-5 py-3 text-right">
+                                        Actions
+                                    </th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-[#E2DFEE] font-medium text-[#2D3142]">
-                                {filteredStudents.map((std) => (
-                                    <tr key={std.student_id || std.id} className="hover:bg-[#F7F6FC]">
-                                        <td className="py-3 px-5">
+
+                            <tbody className="divide-y divide-[#E2DFEE] text-[#2D3142]">
+                                {filteredStudents.map((student) => (
+                                    <tr
+                                        key={
+                                            student.student_id ||
+                                            student.id
+                                        }
+                                        className="hover:bg-[#F7F6FC]"
+                                    >
+                                        <td className="px-5 py-3">
                                             <div className="flex items-center gap-2.5">
-                                                {std.profile_image_url ? (
-                                                    <img src={std.profile_image_url} alt="Profile" className="w-8 h-8 rounded-xl object-cover" />
+                                                {student.profile_image_url ? (
+                                                    <img
+                                                        src={
+                                                            student.profile_image_url
+                                                        }
+                                                        alt=""
+                                                        className="h-9 w-9 rounded-xl object-cover"
+                                                    />
                                                 ) : (
-                                                    <div className="w-8 h-8 rounded-xl bg-[#6C63A8]/10 text-[#6C63A8] font-black flex items-center justify-center text-xs">
-                                                        {std.full_name ? std.full_name.charAt(0).toUpperCase() : 'S'}
+                                                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#6C63A8]/10 font-black text-[#6C63A8]">
+                                                        {student.full_name?.charAt(
+                                                            0
+                                                        ) || 'S'}
                                                     </div>
                                                 )}
+
                                                 <div>
-                                                    <p className="font-bold text-[#2D3142]">{std.full_name}</p>
-                                                    <p className="text-[10px] text-[#6B7280]">{std.gender} • {std.selected_service}</p>
+                                                    <p className="font-bold">
+                                                        {student.full_name}
+                                                    </p>
+                                                    <p className="text-[10px] text-[#6B7280]">
+                                                        {showValue(
+                                                            student.selected_service
+                                                        )}
+                                                    </p>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="py-3 px-5 font-semibold">{std.mykid_number || std.ic_number || 'N/A'}</td>
-                                        <td className="py-3 px-5 font-semibold text-[#6C63A8]">{std.class_name}</td>
-                                        <td className="py-3 px-5">
-                                            <p className="font-semibold">{std.guardian_name || std.father_name || std.mother_name || 'N/A'}</p>
-                                            <p className="text-[10px] text-[#6B7280]">{std.guardian_phone || std.father_phone || std.mother_phone}</p>
+
+                                        <td className="px-5 py-3">
+                                            {showValue(
+                                                student.ic_number ||
+                                                    student.mykid_number
+                                            )}
                                         </td>
-                                        <td className="py-3 px-5 text-right">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <button onClick={() => handleOpenViewProfile(std)} className="p-1.5 rounded-lg bg-[#F7F6FC] text-[#6C63A8] hover:bg-[#6C63A8]/10"><Eye className="w-3.5 h-3.5" /></button>
-                                                <button onClick={() => handleOpenEditModal(std)} className="p-1.5 rounded-lg bg-[#F7F6FC] text-[#2D3142] hover:bg-[#2D3142]/10"><Edit3 className="w-3.5 h-3.5" /></button>
+
+                                        <td className="px-5 py-3 text-[#6C63A8]">
+                                            {showValue(
+                                                student.class_name
+                                            )}
+                                        </td>
+
+                                        <td className="px-5 py-3">
+                                            {isActiveStudent(student) ? (
+                                                <span className="rounded-full bg-green-50 px-2 py-1 font-bold text-green-700">
+                                                    Active
+                                                </span>
+                                            ) : (
+                                                <span className="rounded-full bg-red-50 px-2 py-1 font-bold text-red-700">
+                                                    {showValue(
+                                                        student.exit_reason
+                                                    )}
+                                                </span>
+                                            )}
+                                        </td>
+
+                                        <td className="px-5 py-3">
+                                            <p className="font-semibold">
+                                                {showValue(
+                                                    student.guardian_name
+                                                )}
+                                            </p>
+                                            <p className="text-[10px] text-[#6B7280]">
+                                                {showValue(
+                                                    student.guardian_phone
+                                                )}
+                                            </p>
+                                        </td>
+
+                                        <td className="px-5 py-3 text-right">
+                                            <div className="flex justify-end gap-1">
+                                                <button
+                                                    type="button"
+                                                    title="View student"
+                                                    onClick={() =>
+                                                        openViewModal(student)
+                                                    }
+                                                    className="rounded-lg bg-[#F7F6FC] p-2 text-[#6C63A8]"
+                                                >
+                                                    <Eye className="h-4 w-4" />
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    title="Edit student"
+                                                    onClick={() =>
+                                                        openEditModal(student)
+                                                    }
+                                                    className="rounded-lg bg-[#F7F6FC] p-2 text-[#2D3142]"
+                                                >
+                                                    <Edit3 className="h-4 w-4" />
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>
                                 ))}
+
+                                {filteredStudents.length === 0 && (
+                                    <tr>
+                                        <td
+                                            colSpan={6}
+                                            className="px-5 py-8 text-center text-[#6B7280]"
+                                        >
+                                            No students found in this
+                                            category.
+                                        </td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
                     </div>
                 </div>
-
             </div>
 
             {/* VIEW PROFILE MODAL */}
             {isViewProfileOpen && viewingStudent && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-                    <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden shadow-xl">
-                        <div className="p-5 bg-[#6C63A8] text-white flex items-center justify-between shrink-0">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+                    <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
+                        <div className="flex shrink-0 items-center justify-between bg-[#6C63A8] p-5 text-white">
                             <div className="flex items-center gap-3">
                                 {viewingStudent.profile_image_url ? (
-                                    <img src={viewingStudent.profile_image_url} className="w-12 h-12 rounded-xl object-cover border border-white" />
+                                    <img
+                                        src={
+                                            viewingStudent.profile_image_url
+                                        }
+                                        alt=""
+                                        className="h-12 w-12 rounded-xl object-cover"
+                                    />
                                 ) : (
-                                    <div className="w-12 h-12 rounded-xl bg-white/20 text-white font-black flex items-center justify-center text-lg border border-white/20">
-                                        {viewingStudent.full_name ? viewingStudent.full_name.charAt(0).toUpperCase() : 'S'}
+                                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 font-black">
+                                        {viewingStudent.full_name?.charAt(
+                                            0
+                                        ) || 'S'}
                                     </div>
                                 )}
+
                                 <div>
-                                    <h2 className="text-base font-extrabold">{viewingStudent.full_name}</h2>
-                                    <p className="text-[11px] text-white/80 mt-0.5">
-                                        Class: {viewingStudent.class_name} • Service: {viewingStudent.selected_service}
+                                    <h2 className="text-base font-extrabold">
+                                        {viewingStudent.full_name}
+                                    </h2>
+                                    <p className="text-[11px] text-white/80">
+                                        Student ID:{' '}
+                                        {showValue(
+                                            viewingStudent.student_id ||
+                                                viewingStudent.id
+                                        )}{' '}
+                                        ·{' '}
+                                        {isActiveStudent(viewingStudent)
+                                            ? 'Active'
+                                            : showValue(
+                                                  viewingStudent.exit_reason
+                                              )}
                                     </p>
                                 </div>
                             </div>
-                            <button onClick={() => setIsViewProfileOpen(false)} className="p-1.5 rounded-xl bg-white/10 text-white hover:bg-white/20"><X className="w-4 h-4" /></button>
+
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setIsViewProfileOpen(false)
+                                }
+                                aria-label="Close profile"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
                         </div>
 
-                        <div className="flex items-center border-b border-[#E2DFEE] bg-[#F7F6FC] px-5 gap-2 overflow-x-auto shrink-0">
+                        <div className="flex shrink-0 gap-2 overflow-x-auto border-b border-[#E2DFEE] bg-[#F7F6FC] px-4">
                             {[
-                                { id: 'personal', label: 'Student Information' },
-                                { id: 'parents', label: 'Parents & Guardians' },
-                                { id: 'contact', label: 'Address & Emergency' },
-                                { id: 'medical', label: 'Health & Allergies' },
+                                {
+                                    id: 'personal',
+                                    label: 'Student Information',
+                                },
+                                {
+                                    id: 'parents',
+                                    label: 'Parents & Guardians',
+                                },
+                                {
+                                    id: 'contact',
+                                    label: 'Address & Emergency',
+                                },
+                                {
+                                    id: 'medical',
+                                    label: 'Health & Registration',
+                                },
                             ].map((tab) => (
                                 <button
                                     key={tab.id}
-                                    onClick={() => setActiveTab(tab.id)}
-                                    className={`py-3 px-3 text-[11px] font-bold border-b-2 whitespace-nowrap ${
-                                        activeTab === tab.id ? 'border-[#6C63A8] text-[#6C63A8]' : 'border-transparent text-[#6B7280]'
+                                    type="button"
+                                    onClick={() =>
+                                        setActiveTab(tab.id)
+                                    }
+                                    className={`whitespace-nowrap border-b-2 px-3 py-3 text-[11px] font-bold ${
+                                        activeTab === tab.id
+                                            ? 'border-[#6C63A8] text-[#6C63A8]'
+                                            : 'border-transparent text-[#6B7280]'
                                     }`}
                                 >
                                     {tab.label}
@@ -408,74 +852,330 @@ export default function StudentProfiles(props) {
                             ))}
                         </div>
 
-                        <div className="p-5 overflow-y-auto space-y-3 flex-1 text-[11px]">
+                        <div className="flex-1 overflow-y-auto p-5 text-[11px]">
                             {activeTab === 'personal' && (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div className="p-2.5 bg-[#F7F6FC] rounded-xl"><span className="text-[#6B7280]">MyKid No.:</span> <p className="font-bold">{viewingStudent.mykid_number || 'N/A'}</p></div>
-                                    <div className="p-2.5 bg-[#F7F6FC] rounded-xl"><span className="text-[#6B7280]">IC No.:</span> <p className="font-bold">{viewingStudent.ic_number || 'N/A'}</p></div>
-                                    <div className="p-2.5 bg-[#F7F6FC] rounded-xl"><span className="text-[#6B7280]">Date of Birth:</span> <p className="font-bold">{viewingStudent.date_of_birth || 'N/A'}</p></div>
-                                    <div className="p-2.5 bg-[#F7F6FC] rounded-xl"><span className="text-[#6B7280]">Place of Birth:</span> <p className="font-bold">{viewingStudent.birth_place || 'N/A'}</p></div>
-                                    <div className="p-2.5 bg-[#F7F6FC] rounded-xl"><span className="text-[#6B7280]">Gender:</span> <p className="font-bold">{viewingStudent.gender}</p></div>
-                                    <div className="p-2.5 bg-[#F7F6FC] rounded-xl"><span className="text-[#6B7280]">Favourite Food:</span> <p className="font-bold">{viewingStudent.favourite_food || 'N/A'}</p></div>
-                                    <div className="p-2.5 bg-[#F7F6FC] rounded-xl"><span className="text-[#6B7280]">Child Order:</span> <p className="font-bold">{viewingStudent.birth_order || 'N/A'} of {viewingStudent.total_siblings || 'N/A'} siblings</p></div>
+                                <div className="space-y-5">
+                                    <section>
+                                        <SectionTitle>
+                                            Student Personal Information
+                                        </SectionTitle>
+                                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                            {renderProfileFields(
+                                                viewingStudent,
+                                                [
+                                                    [
+                                                        'Full Name',
+                                                        'full_name',
+                                                    ],
+                                                    [
+                                                        'IC / MyKid No.',
+                                                        'ic_number',
+                                                    ],
+                                                    [
+                                                        'Date of Birth',
+                                                        'date_of_birth',
+                                                    ],
+                                                    [
+                                                        'Place of Birth',
+                                                        'birth_place',
+                                                    ],
+                                                    ['Gender', 'gender'],
+                                                    [
+                                                        'Favourite Food',
+                                                        'favourite_food',
+                                                    ],
+                                                    [
+                                                        'Child Order',
+                                                        'birth_order',
+                                                    ],
+                                                    [
+                                                        'Total Siblings',
+                                                        'total_siblings',
+                                                    ],
+                                                ]
+                                            )}
+
+                                            {viewingStudent.mykid_number && (
+                                                <ProfileField
+                                                    label="Previous Specific MyKid No."
+                                                    value={
+                                                        viewingStudent.mykid_number
+                                                    }
+                                                />
+                                            )}
+                                        </div>
+                                    </section>
+
+                                    <section>
+                                        <SectionTitle>
+                                            Class & Package
+                                        </SectionTitle>
+                                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                            <ProfileField
+                                                label="Class Name"
+                                                value={
+                                                    viewingStudent.class_name
+                                                }
+                                            />
+                                            <ProfileField
+                                                label="Age Category"
+                                                value={
+                                                    viewingStudent.age_category ||
+                                                    viewedPackage?.age_group
+                                                }
+                                            />
+                                            <ProfileField
+                                                label="Package"
+                                                value={
+                                                    viewedPackage?.package_name ||
+                                                    viewingStudent.selected_service
+                                                }
+                                            />
+                                            <ProfileField
+                                                label="Monthly Fee"
+                                                value={
+                                                    viewedPackage?.monthly_fee !=
+                                                    null
+                                                        ? `RM ${Number(
+                                                              viewedPackage.monthly_fee
+                                                          ).toFixed(2)}`
+                                                        : null
+                                                }
+                                            />
+                                            <ProfileField
+                                                label="Student Status"
+                                                value={
+                                                    isActiveStudent(
+                                                        viewingStudent
+                                                    )
+                                                        ? 'Active'
+                                                        : viewingStudent.exit_reason
+                                                }
+                                            />
+                                        </div>
+                                    </section>
                                 </div>
                             )}
 
                             {activeTab === 'parents' && (
-                                <div className="space-y-3">
-                                    <div className="p-3 rounded-xl border border-[#E2DFEE]">
-                                        <h4 className="font-bold text-[#6C63A8] mb-1">Primary Guardian</h4>
-                                        <p><strong>Name:</strong> {viewingStudent.guardian_name || 'N/A'}</p>
-                                        <p><strong>Phone No.:</strong> {viewingStudent.guardian_phone || 'N/A'}</p>
-                                        <p><strong>Relationship:</strong> {viewingStudent.guardian_relationship || 'N/A'}</p>
-                                    </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        <div className="p-3 rounded-xl bg-[#F7F6FC] space-y-0.5">
-                                            <h4 className="font-bold text-[#2D3142] mb-1">Father's Information</h4>
-                                            <p>Name: {viewingStudent.father_name || 'N/A'}</p>
-                                            <p>IC: {viewingStudent.father_ic_number || 'N/A'}</p>
-                                            <p>Phone: {viewingStudent.father_phone || 'N/A'}</p>
-                                            <p>Occupation: {viewingStudent.father_occupation || 'N/A'}</p>
-                                            <p>Race/Nationality: {viewingStudent.father_race} / {viewingStudent.father_nationality}</p>
+                                <div className="space-y-5">
+                                    <section>
+                                        <SectionTitle>
+                                            Primary Guardian
+                                        </SectionTitle>
+                                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                            {renderProfileFields(
+                                                viewingStudent,
+                                                [
+                                                    [
+                                                        'Relationship',
+                                                        'guardian_relationship',
+                                                    ],
+                                                    [
+                                                        'Name',
+                                                        'guardian_name',
+                                                    ],
+                                                    [
+                                                        'Phone',
+                                                        'guardian_phone',
+                                                    ],
+                                                ]
+                                            )}
                                         </div>
-                                        <div className="p-3 rounded-xl bg-[#F7F6FC] space-y-0.5">
-                                            <h4 className="font-bold text-[#2D3142] mb-1">Mother's Information</h4>
-                                            <p>Name: {viewingStudent.mother_name || 'N/A'}</p>
-                                            <p>IC: {viewingStudent.mother_ic_number || 'N/A'}</p>
-                                            <p>Phone: {viewingStudent.mother_phone || 'N/A'}</p>
-                                            <p>Occupation: {viewingStudent.mother_occupation || 'N/A'}</p>
-                                            <p>Race/Nationality: {viewingStudent.mother_race} / {viewingStudent.mother_nationality}</p>
+                                    </section>
+
+                                    <section>
+                                        <SectionTitle>
+                                            Father’s Information
+                                        </SectionTitle>
+                                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                            {renderProfileFields(
+                                                viewingStudent,
+                                                [
+                                                    [
+                                                        'Name',
+                                                        'father_name',
+                                                    ],
+                                                    [
+                                                        'IC',
+                                                        'father_ic_number',
+                                                    ],
+                                                    [
+                                                        'Phone',
+                                                        'father_phone',
+                                                    ],
+                                                    [
+                                                        'Occupation',
+                                                        'father_occupation',
+                                                    ],
+                                                    [
+                                                        'Race',
+                                                        'father_race',
+                                                    ],
+                                                    [
+                                                        'Nationality',
+                                                        'father_nationality',
+                                                    ],
+                                                ]
+                                            )}
                                         </div>
-                                    </div>
+                                    </section>
+
+                                    <section>
+                                        <SectionTitle>
+                                            Mother’s Information
+                                        </SectionTitle>
+                                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                            {renderProfileFields(
+                                                viewingStudent,
+                                                [
+                                                    [
+                                                        'Name',
+                                                        'mother_name',
+                                                    ],
+                                                    [
+                                                        'IC',
+                                                        'mother_ic_number',
+                                                    ],
+                                                    [
+                                                        'Phone',
+                                                        'mother_phone',
+                                                    ],
+                                                    [
+                                                        'Occupation',
+                                                        'mother_occupation',
+                                                    ],
+                                                    [
+                                                        'Race',
+                                                        'mother_race',
+                                                    ],
+                                                    [
+                                                        'Nationality',
+                                                        'mother_nationality',
+                                                    ],
+                                                ]
+                                            )}
+                                        </div>
+                                    </section>
                                 </div>
                             )}
 
                             {activeTab === 'contact' && (
-                                <div className="space-y-3">
-                                    <div className="p-3 rounded-xl bg-[#F7F6FC] space-y-0.5">
-                                        <h4 className="font-bold">Home Address & Email</h4>
-                                        <p><strong>Email:</strong> {viewingStudent.email || 'N/A'}</p>
-                                        <p><strong>Address:</strong> {viewingStudent.home_address || 'N/A'}</p>
-                                    </div>
-                                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 space-y-0.5 text-amber-900">
-                                        <h4 className="font-bold">Emergency Contact</h4>
-                                        <p><strong>Contact Name:</strong> {viewingStudent.emergency_contact_name || 'N/A'}</p>
-                                        <p><strong>Phone No.:</strong> {viewingStudent.emergency_contact_phone || 'N/A'}</p>
-                                        <p><strong>Relationship:</strong> {viewingStudent.emergency_contact_relationship || 'N/A'}</p>
-                                    </div>
+                                <div className="space-y-5">
+                                    <section>
+                                        <SectionTitle>
+                                            Home & Contact
+                                        </SectionTitle>
+                                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                            {renderProfileFields(
+                                                viewingStudent,
+                                                [
+                                                    [
+                                                        'Home Address',
+                                                        'home_address',
+                                                    ],
+                                                    ['Email', 'email'],
+                                                ]
+                                            )}
+                                        </div>
+                                    </section>
+
+                                    <section>
+                                        <SectionTitle>
+                                            Emergency Contact
+                                        </SectionTitle>
+                                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                            {renderProfileFields(
+                                                viewingStudent,
+                                                [
+                                                    [
+                                                        'Contact Name',
+                                                        'emergency_contact_name',
+                                                    ],
+                                                    [
+                                                        'Phone',
+                                                        'emergency_contact_phone',
+                                                    ],
+                                                    [
+                                                        'Relationship',
+                                                        'emergency_contact_relationship',
+                                                    ],
+                                                ]
+                                            )}
+                                        </div>
+                                    </section>
                                 </div>
                             )}
 
                             {activeTab === 'medical' && (
-                                <div className="space-y-3">
-                                    <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-900">
-                                        <h4 className="font-bold mb-0.5">Allergies</h4>
-                                        <p>{viewingStudent.allergies || 'No allergies recorded.'}</p>
-                                    </div>
-                                    <div className="p-3 rounded-xl bg-[#F7F6FC]">
-                                        <h4 className="font-bold mb-0.5">Medical & Health Notes</h4>
-                                        <p>{viewingStudent.medical_notes || 'No specific medical notes.'}</p>
-                                    </div>
+                                <div className="space-y-5">
+                                    <section>
+                                        <SectionTitle>
+                                            Health Information
+                                        </SectionTitle>
+                                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                            {renderProfileFields(
+                                                viewingStudent,
+                                                [
+                                                    [
+                                                        'Allergies',
+                                                        'allergies',
+                                                    ],
+                                                    [
+                                                        'Medical Notes',
+                                                        'medical_notes',
+                                                    ],
+                                                ]
+                                            )}
+                                        </div>
+                                    </section>
+
+                                    <section>
+                                        <SectionTitle>
+                                            Registration Information
+                                        </SectionTitle>
+                                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                            {renderProfileFields(
+                                                viewingStudent,
+                                                [
+                                                    [
+                                                        'Selected Service',
+                                                        'selected_service',
+                                                    ],
+                                                    [
+                                                        'Referral Source',
+                                                        'referral_source',
+                                                    ],
+                                                ]
+                                            )}
+
+                                            <ProfileField
+                                                label="Record Created"
+                                                value={
+                                                    viewingStudent.created_at
+                                                        ? new Date(
+                                                              viewingStudent.created_at
+                                                          ).toLocaleString(
+                                                              'en-MY'
+                                                          )
+                                                        : null
+                                                }
+                                            />
+
+                                            <ProfileField
+                                                label="Last Updated"
+                                                value={
+                                                    viewingStudent.updated_at
+                                                        ? new Date(
+                                                              viewingStudent.updated_at
+                                                          ).toLocaleString(
+                                                              'en-MY'
+                                                          )
+                                                        : null
+                                                }
+                                            />
+                                        </div>
+                                    </section>
                                 </div>
                             )}
                         </div>
@@ -483,322 +1183,501 @@ export default function StudentProfiles(props) {
                 </div>
             )}
 
-            {/* ADD / EDIT STUDENT MODAL */}
+            {/* ADD / EDIT MODAL */}
             {isAddEditModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-                    <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden shadow-xl">
-                        <div className="p-4 bg-[#6C63A8] text-white flex justify-between items-center shrink-0">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+                    <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
+                        <div className="flex shrink-0 items-center justify-between bg-[#6C63A8] p-4 text-white">
                             <h3 className="text-sm font-extrabold">
-                                {editingStudent ? 'Update Student Profile' : 'New Student Registration Form'}
+                                {editingStudent
+                                    ? 'Update Student Profile'
+                                    : 'New Student Registration Form'}
                             </h3>
-                            <button onClick={() => setIsAddEditModalOpen(false)} className="text-white/80 hover:text-white">
-                                <X className="w-4 h-4" />
+
+                            <button
+                                type="button"
+                                onClick={closeAddEditModal}
+                                aria-label="Close form"
+                            >
+                                <X className="h-5 w-5" />
                             </button>
                         </div>
 
-                        <form onSubmit={handleSubmitAddEdit} className="p-5 overflow-y-auto space-y-5 text-[11px] flex-1">
+                        <form
+                            onSubmit={handleSubmit}
+                            className="flex-1 space-y-6 overflow-y-auto p-5 text-[11px]"
+                        >
+                            <p className="text-[#6B7280]">
+                                Fields marked{' '}
+                                <span className="font-bold text-red-600">
+                                    *
+                                </span>{' '}
+                                are required.
+                            </p>
 
-                            {/* PROFILE PICTURE */}
-                            <div className="flex flex-col items-center justify-center border border-dashed border-[#E2DFEE] rounded-xl p-3 bg-[#F7F6FC]">
-                                <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-slate-200 mb-2 border border-white shadow-xs">
+                            {/* PROFILE PHOTO */}
+                            <div className="flex flex-col items-center rounded-xl border border-dashed border-[#E2DFEE] bg-[#F7F6FC] p-4">
+                                <div className="mb-2 flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl bg-slate-200">
                                     {imagePreview ? (
-                                        <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                                        <img
+                                            src={imagePreview}
+                                            alt="Student preview"
+                                            className="h-full w-full object-cover"
+                                        />
                                     ) : (
-                                        <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
-                                            <Camera className="w-5 h-5" />
+                                        <Camera className="h-6 w-6 text-slate-400" />
+                                    )}
+                                </div>
+
+                                <label className="cursor-pointer rounded-lg bg-[#6C63A8] px-3 py-1.5 font-bold text-white">
+                                    Upload Profile Picture
+                                    <input
+                                        type="file"
+                                        accept="image/jpeg,image/png,image/webp"
+                                        onChange={handleImageChange}
+                                        className="hidden"
+                                    />
+                                </label>
+
+                                {errors.profile_image && (
+                                    <p className="mt-1 text-red-600">
+                                        {errors.profile_image}
+                                    </p>
+                                )}
+                            </div>
+
+                            {/* STUDENT INFORMATION */}
+                            <section>
+                                <SectionTitle>
+                                    1. Student Personal Information
+                                </SectionTitle>
+
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                    {renderField(
+                                        'Full Name',
+                                        'full_name',
+                                        {
+                                            required: true,
+                                            className: 'sm:col-span-2',
+                                        }
+                                    )}
+
+                                    {renderField('Gender', 'gender', {
+                                        required: true,
+                                        options: [
+                                            {
+                                                value: 'Boy',
+                                                label: 'Boy',
+                                            },
+                                            {
+                                                value: 'Girl',
+                                                label: 'Girl',
+                                            },
+                                        ],
+                                    })}
+
+                                    {renderField(
+                                        'IC / MyKid No.',
+                                        'ic_number',
+                                        { required: true }
+                                    )}
+
+                                    {renderField(
+                                        'Date of Birth',
+                                        'date_of_birth',
+                                        {
+                                            required: true,
+                                            type: 'date',
+                                        }
+                                    )}
+
+                                    {renderField(
+                                        'Place of Birth',
+                                        'birth_place'
+                                    )}
+
+                                    {renderField(
+                                        'Child Order',
+                                        'birth_order',
+                                        { type: 'number', min: 1 }
+                                    )}
+
+                                    {renderField(
+                                        'Total Siblings',
+                                        'total_siblings',
+                                        { type: 'number', min: 0 }
+                                    )}
+
+                                    {renderField(
+                                        'Favourite Food',
+                                        'favourite_food',
+                                        {
+                                            className: 'sm:col-span-3',
+                                        }
+                                    )}
+                                </div>
+                            </section>
+
+                            {/* PACKAGE */}
+                            <section>
+                                <SectionTitle>
+                                    2. Package & Service Details
+                                </SectionTitle>
+
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                    {renderField(
+                                        'Class Name',
+                                        'class_name',
+                                        {
+                                            required: true,
+                                            onChange: (value) =>
+                                                setData((previous) => ({
+                                                    ...previous,
+                                                    class_name: value,
+                                                    package_id: '',
+                                                })),
+                                            options: [
+                                                {
+                                                    value: 'Tots Club',
+                                                    label: 'Tots Club',
+                                                },
+                                                {
+                                                    value: '2 Years',
+                                                    label: '2 Years',
+                                                },
+                                                {
+                                                    value: '3 Years',
+                                                    label: '3 Years',
+                                                },
+                                                {
+                                                    value: '4 Years',
+                                                    label: '4 Years',
+                                                },
+                                            ],
+                                        }
+                                    )}
+
+                                    {renderField(
+                                        'Package',
+                                        'package_id',
+                                        {
+                                            required: true,
+                                            options: [
+                                                {
+                                                    value: '',
+                                                    label: 'Select Package',
+                                                },
+                                                ...availablePackages.map(
+                                                    (item) => ({
+                                                        value: String(
+                                                            item.package_id
+                                                        ),
+                                                        label: `${
+                                                            item.package_name
+                                                        } — RM ${Number(
+                                                            item.monthly_fee
+                                                        ).toFixed(
+                                                            2
+                                                        )}/month`,
+                                                    })
+                                                ),
+                                            ],
+                                        }
+                                    )}
+                                </div>
+
+                                {selectedPackage && (
+                                    <div className="mt-3 rounded-xl border border-[#E2DFEE] bg-[#F7F6FC] p-3">
+                                        <p className="font-bold text-[#6C63A8]">
+                                            {
+                                                selectedPackage.package_name
+                                            }
+                                        </p>
+                                        <p className="mt-1 text-[#6B7280]">
+                                            Age group:{' '}
+                                            {showValue(
+                                                selectedPackage.age_group
+                                            )}{' '}
+                                            · Monthly fee: RM{' '}
+                                            {Number(
+                                                selectedPackage.monthly_fee
+                                            ).toFixed(2)}
+                                        </p>
+                                    </div>
+                                )}
+                            </section>
+
+                            {/* GUARDIAN */}
+                            <section>
+                                <SectionTitle>
+                                    3. Primary Guardian
+                                </SectionTitle>
+
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                    {renderField(
+                                        'Relationship',
+                                        'guardian_relationship',
+                                        {
+                                            required: true,
+                                            options: [
+                                                {
+                                                    value: 'Father',
+                                                    label: 'Father',
+                                                },
+                                                {
+                                                    value: 'Mother',
+                                                    label: 'Mother',
+                                                },
+                                                {
+                                                    value: 'Guardian',
+                                                    label: 'Guardian',
+                                                },
+                                            ],
+                                        }
+                                    )}
+
+                                    {guardianRequired ? (
+                                        <>
+                                            {renderField(
+                                                'Guardian Name',
+                                                'guardian_name',
+                                                { required: true }
+                                            )}
+                                            {renderField(
+                                                'Guardian Phone',
+                                                'guardian_phone',
+                                                { required: true }
+                                            )}
+                                        </>
+                                    ) : (
+                                        <div className="rounded-lg bg-[#F7F6FC] p-3 text-[#6B7280] sm:col-span-2">
+                                            Primary guardian name and
+                                            phone will be taken from the
+                                            selected father or mother
+                                            below.
                                         </div>
                                     )}
                                 </div>
-                                <label className="cursor-pointer px-3 py-1.5 bg-[#6C63A8] text-white rounded-lg font-bold text-[10px] hover:bg-[#514A82]">
-                                    Upload Profile Picture
-                                    <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
-                                </label>
-                            </div>
 
-                            {/* 1. STUDENT INFORMATION */}
-                            <div>
-                                <h4 className="font-extrabold text-[#6C63A8] uppercase text-[10px] tracking-wider mb-2 pb-1 border-b">1. STUDENT PERSONAL INFORMATION</h4>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                                    <div className="sm:col-span-2">
-                                        <label className="block font-semibold mb-1 text-[#2D3142]">Full Name *</label>
-                                        <input type="text" value={data.full_name} onChange={e => setData('full_name', e.target.value)} required className="w-full p-2 text-[11px] rounded-lg border border-[#E2DFEE] focus:outline-hidden focus:border-[#6C63A8]" />
-                                    </div>
-                                    <div>
-                                        <label className="block font-semibold mb-1 text-[#2D3142]">Gender</label>
-                                        <select value={data.gender} onChange={e => setData('gender', e.target.value)} className="w-full p-2 text-[11px] rounded-lg border border-[#E2DFEE] focus:outline-hidden focus:border-[#6C63A8]">
-                                            <option value="Boy">Boy</option>
-                                            <option value="Girl">Girl</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block font-semibold mb-1 text-[#2D3142]">IC / MyKid No.</label>
-                                        <input type="text" value={data.ic_number} onChange={e => setData('ic_number', e.target.value)} className="w-full p-2 text-[11px] rounded-lg border border-[#E2DFEE] focus:outline-hidden focus:border-[#6C63A8]" />
-                                    </div>
-                                    <div>
-                                        <label className="block font-semibold mb-1 text-[#2D3142]">Specific MyKid No.</label>
-                                        <input type="text" value={data.mykid_number} onChange={e => setData('mykid_number', e.target.value)} className="w-full p-2 text-[11px] rounded-lg border border-[#E2DFEE] focus:outline-hidden focus:border-[#6C63A8]" />
-                                    </div>
-                                    <div>
-                                        <label className="block font-semibold mb-1 text-[#2D3142]">Date of Birth</label>
-                                        <input type="date" value={data.date_of_birth} onChange={e => setData('date_of_birth', e.target.value)} className="w-full p-2 text-[11px] rounded-lg border border-[#E2DFEE] focus:outline-hidden focus:border-[#6C63A8]" />
-                                    </div>
-                                    <div>
-                                        <label className="block font-semibold mb-1 text-[#2D3142]">Place of Birth</label>
-                                        <input type="text" value={data.birth_place} onChange={e => setData('birth_place', e.target.value)} className="w-full p-2 text-[11px] rounded-lg border border-[#E2DFEE] focus:outline-hidden focus:border-[#6C63A8]" />
-                                    </div>
-                                    <div>
-                                        <label className="block font-semibold mb-1 text-[#2D3142]">Child Order</label>
-                                        <input type="number" value={data.birth_order} onChange={e => setData('birth_order', e.target.value)} className="w-full p-2 text-[11px] rounded-lg border border-[#E2DFEE] focus:outline-hidden focus:border-[#6C63A8]" />
-                                    </div>
-                                    <div>
-                                        <label className="block font-semibold mb-1 text-[#2D3142]">Total Siblings</label>
-                                        <input type="number" value={data.total_siblings} onChange={e => setData('total_siblings', e.target.value)} className="w-full p-2 text-[11px] rounded-lg border border-[#E2DFEE] focus:outline-hidden focus:border-[#6C63A8]" />
-                                    </div>
-                                    <div className="sm:col-span-3">
-                                        <label className="block font-semibold mb-1 text-[#2D3142]">Favourite Food</label>
-                                        <input type="text" value={data.favourite_food} onChange={e => setData('favourite_food', e.target.value)} className="w-full p-2 text-[11px] rounded-lg border border-[#E2DFEE] focus:outline-hidden focus:border-[#6C63A8]" />
-                                    </div>
+                                {!guardianRequired &&
+                                    (errors.guardian_name ||
+                                        errors.guardian_phone) && (
+                                        <p className="mt-2 text-red-600">
+                                            {errors.guardian_name ||
+                                                errors.guardian_phone}
+                                        </p>
+                                    )}
+                            </section>
+
+                            {/* FATHER */}
+                            <section>
+                                <SectionTitle>
+                                    4. Father’s Details
+                                </SectionTitle>
+
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                    {renderField(
+                                        'Father’s Name',
+                                        'father_name',
+                                        { required: fatherRequired }
+                                    )}
+                                    {renderField(
+                                        'Father’s IC',
+                                        'father_ic_number'
+                                    )}
+                                    {renderField(
+                                        'Father’s Phone',
+                                        'father_phone',
+                                        { required: fatherRequired }
+                                    )}
+                                    {renderField(
+                                        'Father’s Occupation',
+                                        'father_occupation'
+                                    )}
+                                    {renderField(
+                                        'Father’s Race',
+                                        'father_race'
+                                    )}
+                                    {renderField(
+                                        'Father’s Nationality',
+                                        'father_nationality'
+                                    )}
                                 </div>
-                            </div>
+                            </section>
 
-                            {/* 2. KINDERGARTEN & PACKAGE DETAILS */}
-                            <div>
-                                <h4 className="font-extrabold text-[#6C63A8] uppercase text-[10px] tracking-wider mb-2 pb-1 border-b">
-                                    2. PACKAGE & SERVICE DETAILS
-                                </h4>
+                            {/* MOTHER */}
+                            <section>
+                                <SectionTitle>
+                                    5. Mother’s Details
+                                </SectionTitle>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-
-                                    {/* Class Name */}
-                                    <div>
-                                        <label className="block font-semibold mb-1 text-[#2D3142]">
-                                            Class Name *
-                                        </label>
-
-                                        <select
-                                            value={data.class_name}
-                                            onChange={(e) => {
-                                                setData((previous) => ({
-                                                    ...previous,
-                                                    class_name: e.target.value,
-                                                    package_id: '',
-                                                }));
-                                            }}
-                                            required
-                                            className="w-full p-2 text-[11px] rounded-lg border border-[#E2DFEE] focus:outline-hidden focus:border-[#6C63A8]"
-                                        >
-                                            <option value="Tots Club">Tots Club</option>
-                                            <option value="2 Years">2 Years</option>
-                                            <option value="3 Years">3 Years</option>
-                                            <option value="4 Years">4 Years</option>
-                                        </select>
-                                    </div>
-
-                                    {/* Package */}
-                                    <div>
-                                        <label className="block font-semibold mb-1 text-[#2D3142]">
-                                            Package *
-                                        </label>
-
-                                        <select
-                                            value={data.package_id}
-                                            onChange={(e) =>
-                                                setData('package_id', e.target.value)
-                                            }
-                                            required
-                                            className="w-full p-2 text-[11px] rounded-lg border border-[#E2DFEE] focus:outline-hidden focus:border-[#6C63A8]"
-                                        >
-                                            <option value="">Select Package</option>
-
-                                            {availablePackages.map((pkg) => (
-                                                <option
-                                                    key={pkg.package_id}
-                                                    value={pkg.package_id}
-                                                >
-                                                    {pkg.package_name} — RM
-                                                    {Number(pkg.monthly_fee).toFixed(2)}
-                                                    /month
-                                                </option>
-                                            ))}
-                                        </select>
-
-                                        {errors.package_id && (
-                                            <p className="text-red-500 text-[10px] mt-1">
-                                                {errors.package_id}
-                                            </p>
-                                        )}
-                                    </div>
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                    {renderField(
+                                        'Mother’s Name',
+                                        'mother_name',
+                                        { required: motherRequired }
+                                    )}
+                                    {renderField(
+                                        'Mother’s IC',
+                                        'mother_ic_number'
+                                    )}
+                                    {renderField(
+                                        'Mother’s Phone',
+                                        'mother_phone',
+                                        { required: motherRequired }
+                                    )}
+                                    {renderField(
+                                        'Mother’s Occupation',
+                                        'mother_occupation'
+                                    )}
+                                    {renderField(
+                                        'Mother’s Race',
+                                        'mother_race'
+                                    )}
+                                    {renderField(
+                                        'Mother’s Nationality',
+                                        'mother_nationality'
+                                    )}
                                 </div>
+                            </section>
 
-                                {/* Selected Package Information */}
-                                {data.package_id && (() => {
-                                    const selectedPackage = packages.find(
-                                        (pkg) =>
-                                            String(pkg.package_id) ===
-                                            String(data.package_id)
-                                    );
+                            {/* CONTACT */}
+                            <section>
+                                <SectionTitle>
+                                    6. Address & Contact
+                                </SectionTitle>
 
-                                    if (!selectedPackage) {
-                                        return null;
-                                    }
-
-                                    const formatTime = (time) => {
-                                        if (!time) return '-';
-
-                                        const [hour, minute] = time.split(':');
-                                        const date = new Date();
-
-                                        date.setHours(
-                                            Number(hour),
-                                            Number(minute)
-                                        );
-
-                                        return date.toLocaleTimeString(
-                                            'en-MY',
-                                            {
-                                                hour: 'numeric',
-                                                minute: '2-digit',
-                                                hour12: true,
-                                            }
-                                        );
-                                    };
-
-                                    return (
-                                        <div className="mt-3 p-4 rounded-xl bg-[#F7F6FC] border border-[#E2DFEE]">
-                                            <div className="flex items-center justify-between gap-3 mb-3">
-                                                <div>
-                                                    <p className="text-[10px] text-[#6B7280] font-bold uppercase">
-                                                        Selected Package
-                                                    </p>
-
-                                                    <p className="text-sm font-black text-[#6C63A8]">
-                                                        {selectedPackage.package_name}
-                                                    </p>
-                                                </div>
-
-                                                <div className="text-right">
-                                                    <p className="text-[10px] text-[#6B7280]">
-                                                        Monthly Fee
-                                                    </p>
-
-                                                    <p className="text-sm font-black text-[#2D3142]">
-                                                        RM
-                                                        {Number(
-                                                            selectedPackage.monthly_fee
-                                                        ).toFixed(2)}
-                                                    </p>
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                                <div className="bg-white rounded-lg p-2.5 border border-[#E2DFEE]">
-                                                    <p className="text-[9px] uppercase font-bold text-[#6B7280]">
-                                                        Age Group
-                                                    </p>
-
-                                                    <p className="font-bold text-[#2D3142] mt-0.5">
-                                                        {selectedPackage.age_group}
-                                                    </p>
-                                                </div>
-
-                                                <div className="bg-white rounded-lg p-2.5 border border-[#E2DFEE]">
-                                                    <p className="text-[9px] uppercase font-bold text-[#6B7280]">
-                                                        Session
-                                                    </p>
-
-                                                    <p className="font-bold text-[#2D3142] mt-0.5">
-                                                        {formatTime(
-                                                            selectedPackage.start_time
-                                                        )}
-                                                        {' - '}
-                                                        {formatTime(
-                                                            selectedPackage.end_time
-                                                        )}
-                                                    </p>
-                                                </div>
-
-                                                <div className="bg-white rounded-lg p-2.5 border border-[#E2DFEE]">
-                                                    <p className="text-[9px] uppercase font-bold text-[#6B7280]">
-                                                        Late After
-                                                    </p>
-
-                                                    <p className="font-bold text-[#2D3142] mt-0.5">
-                                                        {formatTime(
-                                                            selectedPackage.end_time
-                                                        )}
-                                                    </p>
-                                                </div>
-                                            </div>
-
-                                            <p className="text-[10px] text-[#6B7280] mt-3">
-                                                {selectedPackage.description}
-                                            </p>
-                                        </div>
-                                    );
-                                })()}
-                            </div>
-
-                            {/* 3. FATHER & GUARDIAN */}
-                            <div>
-                                <h4 className="font-extrabold text-[#6C63A8] uppercase text-[10px] tracking-wider mb-2 pb-1 border-b">3. FATHER & PRIMARY GUARDIAN DETAILS</h4>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                                    <div>
-                                        <label className="block font-semibold mb-1 text-[#2D3142]">Father's Name</label>
-                                        <input type="text" value={data.father_name} onChange={e => setData('father_name', e.target.value)} className="w-full p-2 text-[11px] rounded-lg border border-[#E2DFEE] focus:outline-hidden focus:border-[#6C63A8]" />
-                                    </div>
-                                    <div>
-                                        <label className="block font-semibold mb-1 text-[#2D3142]">Father's IC</label>
-                                        <input type="text" value={data.father_ic_number} onChange={e => setData('father_ic_number', e.target.value)} className="w-full p-2 text-[11px] rounded-lg border border-[#E2DFEE] focus:outline-hidden focus:border-[#6C63A8]" />
-                                    </div>
-                                    <div>
-                                        <label className="block font-semibold mb-1 text-[#2D3142]">Father's Phone</label>
-                                        <input type="text" value={data.father_phone} onChange={e => setData('father_phone', e.target.value)} className="w-full p-2 text-[11px] rounded-lg border border-[#E2DFEE] focus:outline-hidden focus:border-[#6C63A8]" />
-                                    </div>
-                                    <div>
-                                        <label className="block font-semibold mb-1 text-[#2D3142]">Father's Occupation</label>
-                                        <input type="text" value={data.father_occupation} onChange={e => setData('father_occupation', e.target.value)} className="w-full p-2 text-[11px] rounded-lg border border-[#E2DFEE] focus:outline-hidden focus:border-[#6C63A8]" />
-                                    </div>
-                                    <div>
-                                        <label className="block font-semibold mb-1 text-[#2D3142]">Father's Race</label>
-                                        <input type="text" value={data.father_race} onChange={e => setData('father_race', e.target.value)} className="w-full p-2 text-[11px] rounded-lg border border-[#E2DFEE] focus:outline-hidden focus:border-[#6C63A8]" />
-                                    </div>
-                                    <div>
-                                        <label className="block font-semibold mb-1 text-[#2D3142]">Father's Nationality</label>
-                                        <input type="text" value={data.father_nationality} onChange={e => setData('father_nationality', e.target.value)} className="w-full p-2 text-[11px] rounded-lg border border-[#E2DFEE] focus:outline-hidden focus:border-[#6C63A8]" />
-                                    </div>
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                    {renderField(
+                                        'Home Address',
+                                        'home_address',
+                                        {
+                                            textarea: true,
+                                            className: 'sm:col-span-2',
+                                        }
+                                    )}
+                                    {renderField('Email', 'email', {
+                                        type: 'email',
+                                    })}
                                 </div>
-                            </div>
+                            </section>
 
-                            {/* 4. MOTHER DETAILS */}
-                            <div>
-                                <h4 className="font-extrabold text-[#6C63A8] uppercase text-[10px] tracking-wider mb-2 pb-1 border-b">4. MOTHER DETAILS</h4>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                                    <div>
-                                        <label className="block font-semibold mb-1 text-[#2D3142]">Mother's Name</label>
-                                        <input type="text" value={data.mother_name} onChange={e => setData('mother_name', e.target.value)} className="w-full p-2 text-[11px] rounded-lg border border-[#E2DFEE] focus:outline-hidden focus:border-[#6C63A8]" />
-                                    </div>
-                                    <div>
-                                        <label className="block font-semibold mb-1 text-[#2D3142]">Mother's IC</label>
-                                        <input type="text" value={data.mother_ic_number} onChange={e => setData('mother_ic_number', e.target.value)} className="w-full p-2 text-[11px] rounded-lg border border-[#E2DFEE] focus:outline-hidden focus:border-[#6C63A8]" />
-                                    </div>
-                                    <div>
-                                        <label className="block font-semibold mb-1 text-[#2D3142]">Mother's Phone</label>
-                                        <input type="text" value={data.mother_phone} onChange={e => setData('mother_phone', e.target.value)} className="w-full p-2 text-[11px] rounded-lg border border-[#E2DFEE] focus:outline-hidden focus:border-[#6C63A8]" />
-                                    </div>
+                            {/* EMERGENCY */}
+                            <section>
+                                <SectionTitle>
+                                    7. Emergency Contact
+                                </SectionTitle>
+
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                    {renderField(
+                                        'Contact Name',
+                                        'emergency_contact_name'
+                                    )}
+                                    {renderField(
+                                        'Contact Phone',
+                                        'emergency_contact_phone'
+                                    )}
+                                    {renderField(
+                                        'Relationship',
+                                        'emergency_contact_relationship'
+                                    )}
                                 </div>
-                            </div>
+                            </section>
 
-                            {/* ACTION BUTTONS */}
-                            <div className="flex justify-end gap-2 pt-3 border-t border-[#E2DFEE] shrink-0">
-                                <button type="button" onClick={() => setIsAddEditModalOpen(false)} className="px-3 py-1.5 bg-slate-100 rounded-lg font-bold text-[#2D3142]">Cancel</button>
-                                <button type="submit" disabled={processing} className="px-5 py-1.5 bg-[#6C63A8] text-white rounded-lg font-bold hover:bg-[#514A82]">Save Record</button>
-                            </div>
+                            {/* HEALTH */}
+                            <section>
+                                <SectionTitle>
+                                    8. Health & Registration Notes
+                                </SectionTitle>
 
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                    {renderField(
+                                        'Allergies',
+                                        'allergies',
+                                        { textarea: true }
+                                    )}
+                                    {renderField(
+                                        'Medical Notes',
+                                        'medical_notes',
+                                        { textarea: true }
+                                    )}
+                                    {renderField(
+                                        'Referral Source',
+                                        'referral_source',
+                                        {
+                                            className: 'sm:col-span-2',
+                                        }
+                                    )}
+                                </div>
+                            </section>
+
+                            {/* STATUS: EDIT ONLY */}
+                            {editingStudent && (
+                                <section>
+                                    <SectionTitle>
+                                        9. Student Status
+                                    </SectionTitle>
+
+                                    {renderField(
+                                        'Status',
+                                        'student_status',
+                                        {
+                                            required: true,
+                                            options: [
+                                                {
+                                                    value: 'Active',
+                                                    label: 'Active — Still Enrolled',
+                                                },
+                                                {
+                                                    value: 'Withdrawn',
+                                                    label: 'Withdrawn — Left the Centre',
+                                                },
+                                                {
+                                                    value: 'Graduated',
+                                                    label: 'Graduated — Completed Studies',
+                                                },
+                                            ],
+                                        }
+                                    )}
+
+                                    {data.student_status !==
+                                        'Active' && (
+                                        <p className="mt-2 rounded-lg bg-amber-50 p-3 text-amber-900">
+                                            Student profile and previous
+                                            records will be kept. The
+                                            student will appear under
+                                            Inactive.
+                                        </p>
+                                    )}
+                                </section>
+                            )}
+
+                            {/* ACTIONS */}
+                            <div className="flex justify-end gap-2 border-t border-[#E2DFEE] pt-4">
+                                <button
+                                    type="button"
+                                    onClick={closeAddEditModal}
+                                    className="rounded-lg bg-slate-100 px-4 py-2 font-bold text-[#2D3142]"
+                                >
+                                    Cancel
+                                </button>
+
+                                <button
+                                    type="submit"
+                                    disabled={processing}
+                                    className="rounded-lg bg-[#6C63A8] px-5 py-2 font-bold text-white hover:bg-[#514A82] disabled:opacity-50"
+                                >
+                                    {processing
+                                        ? 'Saving...'
+                                        : editingStudent
+                                          ? 'Update Record'
+                                          : 'Save Record'}
+                                </button>
+                            </div>
                         </form>
                     </div>
                 </div>
             )}
-
         </AuthenticatedLayout>
     );
 }

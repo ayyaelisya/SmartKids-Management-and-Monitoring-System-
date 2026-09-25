@@ -198,8 +198,9 @@ class TeacherAttendanceController extends Controller
             : $now->toDateString();
         $currentTime = $now->toTimeString();
 
-        $status = $validated['status'] === 'Late Arrival'
-            ? 'Late'
+        // Arrival time is recorded, but only late pickup affects fees.
+        $status = in_array($validated['status'], ['Late', 'Late Arrival'], true)
+            ? 'Present'
             : $validated['status'];
         $action = $validated['action'] ?? null;
 
@@ -208,11 +209,18 @@ class TeacherAttendanceController extends Controller
             'date' => $attendanceDate,
         ]);
 
-        // An existing Absent record cannot be overwritten as another status.
+        // A scheduled absence can be corrected when the student arrives.
+        // Keep parent-submitted and teacher-entered absences protected.
         if (
             $attendance->exists
             && $attendance->status === 'Absent'
             && $status !== 'Absent'
+            && ! (
+                $status === 'Present'
+                && $attendance->method === 'Automatic'
+                && ! $attendance->absence_reason
+                && ! $attendance->absence_attachment
+            )
         ) {
             return back()->withErrors([
                 'attendance' =>
@@ -246,7 +254,7 @@ class TeacherAttendanceController extends Controller
             );
         }
 
-        if (in_array($status, ['Present', 'Late'], true)) {
+        if ($status === 'Present') {
             $attendance->status = $status;
 
             if (! $attendance->check_in_time) {

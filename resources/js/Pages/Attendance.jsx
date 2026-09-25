@@ -393,10 +393,6 @@ export default function AdminAttendance({
                                     Present
                                 </option>
 
-                                <option value="Late">
-                                    Late
-                                </option>
-
                                 <option value="Absent">
                                     Absent
                                 </option>

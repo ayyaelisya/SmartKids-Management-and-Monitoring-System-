@@ -1125,9 +1125,6 @@ export default function AttendanceManagement({
                                 <option value="Present">
                                     Present
                                 </option>
-                                <option value="Late">
-                                    Late
-                                </option>
                                 <option value="Absent">
                                     Absent
                                 </option>
@@ -1343,19 +1340,6 @@ export default function AttendanceManagement({
                                                                     className="px-2 py-1 bg-[#72A77D]/10 text-[#72A77D] hover:bg-[#72A77D] hover:text-white rounded-lg font-bold text-[10px]"
                                                                 >
                                                                     Present
-                                                                </button>
-
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() =>
-                                                                        handleManualStatusUpdate(
-                                                                            student.id,
-                                                                            'Late'
-                                                                        )
-                                                                    }
-                                                                    className="px-2 py-1 bg-[#E8B85C]/10 text-[#E8B85C] hover:bg-[#E8B85C] hover:text-white rounded-lg font-bold text-[10px]"
-                                                                >
-                                                                    Late
                                                                 </button>
 
                                                                 <button

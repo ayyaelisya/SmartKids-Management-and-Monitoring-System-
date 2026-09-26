@@ -21,13 +21,38 @@ use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\MessagingController;
 use App\Http\Controllers\TeacherDashboardController;
 use App\Http\Controllers\TeacherClassController;
+use App\Http\Controllers\ProfileController;
+use App\Models\Package;
+use App\Http\Controllers\PublicEnquiryController;
 
 
 // Public / Guest Routes
 
 Route::get('/', function () {
-    return redirect()->route('login');
-});
+    return Inertia::render('Public/Home');
+})->name('home');
+
+Route::get('/about', fn () => Inertia::render('Public/About'))->name('public.about');
+Route::get('/programmes', fn () => Inertia::render('Public/Programmes'))->name('public.programmes');
+Route::get('/packages', function () {
+    return Inertia::render('Public/Packages', [
+        'packages' => Package::query()->where('status', 'active')
+            ->orderBy('age_group')->orderBy('monthly_fee')
+            ->get(['package_id', 'package_name', 'age_group', 'monthly_fee', 'start_time', 'end_time', 'description']),
+    ]);
+})->name('public.packages');
+Route::get('/careers', fn () => Inertia::render('Public/Careers', [
+    'success' => session('enquiry_success'),
+]))->name('public.careers');
+Route::get('/contact', fn () => Inertia::render('Public/Contact'))->name('public.contact');
+Route::get('/activities', fn () => Inertia::render('Public/Activities'))->name('public.activities');
+Route::get('/registration-enquiry', fn () => Inertia::render('Public/RegistrationEnquiry', [
+    'success' => session('enquiry_success'),
+]))->name('public.registration');
+Route::post('/registration-enquiry', [PublicEnquiryController::class, 'registration'])
+    ->middleware('throttle:5,1')->name('public.registration.send');
+Route::post('/career-enquiry', [PublicEnquiryController::class, 'career'])
+    ->middleware('throttle:5,1')->name('public.career.send');
 
 
 // ToyyibPay Webhook Callback
@@ -42,6 +67,15 @@ Route::post(
 // Protected Routes
 
 Route::middleware(['auth'])->group(function () {
+
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::post('/profile/photo', [ProfileController::class, 'updatePhoto'])
+        ->name('profile.photo.update');
+    Route::post('/profile/verify-email', [ProfileController::class, 'verifyEmail'])
+        ->middleware('throttle:10,1')->name('profile.email.verify');
+    Route::delete('/profile/pending-email', [ProfileController::class, 'cancelEmail'])
+        ->name('profile.email.cancel');
 
     // =====================================================
     // ADMIN ROUTES
@@ -76,6 +110,9 @@ Route::middleware(['auth'])->group(function () {
             '/staff-accounts',
             [AccountController::class, 'store']
         )->name('staff-accounts.store');
+
+        Route::patch('/staff-accounts/{user}', [AccountController::class, 'update'])
+            ->name('staff-accounts.update');
 
         Route::post(
             '/staff-accounts/link-student',

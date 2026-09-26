@@ -1,94 +1,244 @@
+import { useState } from 'react';
+import { Head, Link, useForm } from '@inertiajs/react';
 import InputError from '@/Components/InputError';
-import InputLabel from '@/Components/InputLabel';
-import PrimaryButton from '@/Components/PrimaryButton';
-import TextInput from '@/Components/TextInput';
-import GuestLayout from '@/Layouts/GuestLayout';
-import { Head, useForm } from '@inertiajs/react';
 
 export default function ResetPassword({ token, email }) {
+    const [showPasswords, setShowPasswords] = useState(false);
+
     const { data, setData, post, processing, errors, reset } = useForm({
-        token: token,
-        email: email,
+        token,
+        email: email ?? '',
         password: '',
         password_confirmation: '',
     });
 
-    const submit = (e) => {
-        e.preventDefault();
+    const submit = (event) => {
+        event.preventDefault();
 
         post(route('password.store'), {
-            onFinish: () => reset('password', 'password_confirmation'),
+            onSuccess: () => reset('password', 'password_confirmation'),
         });
     };
 
+    const inputClass =
+        'mt-2 block w-full rounded-2xl border border-[#D9E8DE] bg-[#FAFDF9] px-4 py-3.5 text-sm text-[#244E42] placeholder:text-[#9AAFA3] outline-none transition focus:border-[#67B38B] focus:ring-4 focus:ring-[#DDF4E5]';
+
     return (
-        <GuestLayout>
-            <Head title="Reset Password" />
+        <div className="min-h-screen bg-[#F8FBF6] font-sans text-[#244E42]">
+            <Head title="Reset Password · Tinta Tots Clubhouse" />
 
-            <form onSubmit={submit}>
-                <div>
-                    <InputLabel htmlFor="email" value="Email" />
+            <div className="grid min-h-screen lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                <aside className="relative hidden overflow-hidden bg-[#EAF6EC] p-10 lg:flex lg:flex-col lg:justify-between xl:p-14">
+                    <div className="absolute -right-24 -top-28 h-80 w-80 rounded-full bg-[#FBE6A1]/70" />
+                    <div className="absolute -bottom-28 -left-28 h-80 w-80 rounded-full bg-[#C7E9F0]/80" />
+                    <div className="absolute bottom-24 right-10 h-24 w-24 rounded-full bg-[#F9C9DD]/70" />
 
-                    <TextInput
-                        id="email"
-                        type="email"
-                        name="email"
-                        value={data.email}
-                        className="mt-1 block w-full"
-                        autoComplete="username"
-                        onChange={(e) => setData('email', e.target.value)}
-                    />
+                    <Link
+                        href="/"
+                        className="relative z-10 inline-flex w-fit items-center gap-3"
+                    >
+                        <img
+                            src="/images/logo.jpg"
+                            alt="Tinta Tots Clubhouse logo"
+                            className="h-14 w-14 rounded-2xl bg-white object-contain p-1 shadow-sm"
+                        />
+                        <span className="text-lg font-black leading-tight text-[#244E42]">
+                            Tinta Tots
+                            <span className="block text-[11px] font-extrabold tracking-[0.24em] text-[#D76696]">
+                                CLUBHOUSE
+                            </span>
+                        </span>
+                    </Link>
 
-                    <InputError message={errors.email} className="mt-2" />
-                </div>
+                    <div className="relative z-10 max-w-lg py-12">
+                        <span className="inline-flex rounded-full bg-white/80 px-4 py-2 text-xs font-bold tracking-wide text-[#467B60]">
+                            SMART KIDS PORTAL
+                        </span>
 
-                <div className="mt-4">
-                    <InputLabel htmlFor="password" value="Password" />
+                        <h1 className="mt-7 text-5xl font-black leading-[1.12] tracking-tight xl:text-6xl">
+                            A fresh start,
+                            <br />
+                            <span className="text-[#DB729E]">
+                                just for you.
+                            </span>
+                        </h1>
 
-                    <TextInput
-                        id="password"
-                        type="password"
-                        name="password"
-                        value={data.password}
-                        className="mt-1 block w-full"
-                        autoComplete="new-password"
-                        isFocused={true}
-                        onChange={(e) => setData('password', e.target.value)}
-                    />
+                        <p className="mt-6 max-w-md text-base leading-8 text-[#5C7567]">
+                            Create a new password and get back to the moments
+                            that matter at Tinta Tots Clubhouse.
+                        </p>
 
-                    <InputError message={errors.password} className="mt-2" />
-                </div>
+                        <div className="mt-10 flex flex-wrap gap-3">
+                            <span className="rounded-full bg-white px-4 py-2 text-xs font-bold text-[#4D8064] shadow-sm">
+                                ✦ Secure access
+                            </span>
+                            <span className="rounded-full bg-[#FFF0BA] px-4 py-2 text-xs font-bold text-[#806926]">
+                                ♡ Stay connected
+                            </span>
+                        </div>
+                    </div>
 
-                <div className="mt-4">
-                    <InputLabel
-                        htmlFor="password_confirmation"
-                        value="Confirm Password"
-                    />
+                    <p className="relative z-10 text-xs text-[#70897A]">
+                        © {new Date().getFullYear()} Tinta Tots Clubhouse
+                    </p>
+                </aside>
 
-                    <TextInput
-                        type="password"
-                        id="password_confirmation"
-                        name="password_confirmation"
-                        value={data.password_confirmation}
-                        className="mt-1 block w-full"
-                        autoComplete="new-password"
-                        onChange={(e) =>
-                            setData('password_confirmation', e.target.value)
-                        }
-                    />
+                <main className="flex min-w-0 flex-col items-center justify-center px-5 py-10 sm:px-10 lg:px-14">
+                    <div className="w-full max-w-[480px]">
+                        <Link
+                            href="/"
+                            className="mb-10 inline-flex items-center gap-3 lg:hidden"
+                        >
+                            <img
+                                src="/images/logo.jpg"
+                                alt="Tinta Tots Clubhouse logo"
+                                className="h-12 w-12 rounded-2xl bg-white object-contain p-1 shadow-sm"
+                            />
+                            <span className="font-black">
+                                Tinta Tots Clubhouse
+                            </span>
+                        </Link>
 
-                    <InputError
-                        message={errors.password_confirmation}
-                        className="mt-2"
-                    />
-                </div>
+                        <Link
+                            href={route('login')}
+                            className="inline-flex items-center gap-2 text-sm font-bold text-[#678675] transition hover:text-[#244E42]"
+                        >
+                            <span aria-hidden="true">←</span>
+                            Back to login
+                        </Link>
 
-                <div className="mt-4 flex items-center justify-end">
-                    <PrimaryButton className="ms-4" disabled={processing}>
-                        Reset Password
-                    </PrimaryButton>
-                </div>
-            </form>
-        </GuestLayout>
+                        <div
+                            className="mt-8 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#E3F2E8] text-2xl"
+                            aria-hidden="true"
+                        >
+                            🔒
+                        </div>
+
+                        <h2 className="mt-6 text-3xl font-black tracking-tight sm:text-4xl">
+                            Set a new password
+                        </h2>
+
+                        <p className="mt-3 text-sm leading-7 text-[#6A8071]">
+                            Enter your email and choose a new password for your
+                            account.
+                        </p>
+
+                        <form onSubmit={submit} className="mt-9 space-y-5">
+                            <div>
+                                <label
+                                    htmlFor="email"
+                                    className="text-sm font-bold"
+                                >
+                                    Email address
+                                </label>
+                                <input
+                                    id="email"
+                                    type="email"
+                                    name="email"
+                                    value={data.email}
+                                    onChange={(event) =>
+                                        setData('email', event.target.value)
+                                    }
+                                    autoComplete="username"
+                                    required
+                                    className={inputClass}
+                                />
+                                <InputError
+                                    message={errors.email}
+                                    className="mt-2"
+                                />
+                            </div>
+
+                            <div>
+                                <label
+                                    htmlFor="password"
+                                    className="text-sm font-bold"
+                                >
+                                    New password
+                                </label>
+                                <input
+                                    id="password"
+                                    type={showPasswords ? 'text' : 'password'}
+                                    name="password"
+                                    value={data.password}
+                                    onChange={(event) =>
+                                        setData('password', event.target.value)
+                                    }
+                                    autoComplete="new-password"
+                                    placeholder="Enter your new password"
+                                    minLength={8}
+                                    required
+                                    className={inputClass}
+                                />
+                                <InputError
+                                    message={errors.password}
+                                    className="mt-2"
+                                />
+                            </div>
+
+                            <div>
+                                <label
+                                    htmlFor="password_confirmation"
+                                    className="text-sm font-bold"
+                                >
+                                    Confirm new password
+                                </label>
+                                <input
+                                    id="password_confirmation"
+                                    type={showPasswords ? 'text' : 'password'}
+                                    name="password_confirmation"
+                                    value={data.password_confirmation}
+                                    onChange={(event) =>
+                                        setData(
+                                            'password_confirmation',
+                                            event.target.value,
+                                        )
+                                    }
+                                    autoComplete="new-password"
+                                    placeholder="Repeat your new password"
+                                    minLength={8}
+                                    required
+                                    className={inputClass}
+                                />
+                                <InputError
+                                    message={errors.password_confirmation}
+                                    className="mt-2"
+                                />
+                            </div>
+
+                            <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-[#5E7968]">
+                                <input
+                                    type="checkbox"
+                                    checked={showPasswords}
+                                    onChange={(event) =>
+                                        setShowPasswords(event.target.checked)
+                                    }
+                                    className="rounded border-[#AFCDB8] text-[#397A5B] focus:ring-[#99D7AF]"
+                                />
+                                Show passwords
+                            </label>
+
+                            <button
+                                type="submit"
+                                disabled={processing}
+                                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#244E42] px-5 py-4 text-sm font-extrabold text-white shadow-lg shadow-[#244E42]/15 transition hover:-translate-y-0.5 hover:bg-[#316C53] disabled:cursor-wait disabled:opacity-60"
+                            >
+                                {processing
+                                    ? 'Updating password…'
+                                    : 'Reset password'}
+                                {!processing && (
+                                    <span aria-hidden="true">→</span>
+                                )}
+                            </button>
+                        </form>
+
+                        <p className="mt-8 text-center text-xs leading-6 text-[#829689]">
+                            Need help? Contact the Tinta Tots team at
+                            017-464 3036.
+                        </p>
+                    </div>
+                </main>
+            </div>
+        </div>
     );
 }

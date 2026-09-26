@@ -1,0 +1,6 @@
+import { Head } from '@inertiajs/react';
+import { Clock3, Mail, Phone } from 'lucide-react';
+import PublicLayout, { PageIntro, Reveal } from './components/PublicLayout';
+import { RegistrationForm } from './components/EnquiryForms';
+
+export default function RegistrationEnquiry({ success }) { return <PublicLayout current="/registration-enquiry"><Head title="Registration Enquiry | Tinta Tots Clubhouse"/><PageIntro eyebrow="Start your journey" title="A little hello is" accent="the first step." description="Tell us about your child and the programme you're interested in. This form sends an enquiry; our team will follow up about availability and registration."/><section className="tt-section"><div className="tt-wrap tt-enquiry-layout"><Reveal><div className="tt-section-title"><span className="tt-eyebrow">Registration enquiry</span><h2>Let's get to <em>know you.</em></h2><p>Complete the form and our team will get back to you. You can also call or WhatsApp us directly.</p></div><div className="tt-enquiry-info"><p><Clock3 size={19}/> Monday–Friday, 7:00 AM–6:00 PM</p><p><Phone size={19}/> 017-464 3036</p><p><Mail size={19}/> smartkids.system@gmail.com</p></div></Reveal><Reveal delay={100}><RegistrationForm success={success}/></Reveal></div></section></PublicLayout>; }

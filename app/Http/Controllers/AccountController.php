@@ -10,6 +10,7 @@ use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class AccountController extends Controller
@@ -47,7 +48,11 @@ class AccountController extends Controller
     {
         $validated = $request->validate([
             'full_name'     => 'required|string|max:255',
-            'email'         => 'required|string|email|max:255|unique:users,email',
+            'email'         => [
+                'required', 'string', 'email', 'max:255', 'unique:users,email',
+                Rule::when($request->input('role') !== 'admin',
+                    Rule::notIn(['smartkids.system@gmail.com'])),
+            ],
             'phone_number'  => 'nullable|string|max:20',
             'password'      => 'required|string|min:6',
             'role'          => 'required|in:admin,teacher,parent',
@@ -102,8 +107,7 @@ class AccountController extends Controller
             // Create admin profile
             if ($validated['role'] === 'admin') {
                 Admin::create([
-                    'user_id'   => $userId,
-                    'full_name' => $validated['full_name'],
+                    'user_id' => $userId,
                 ]);
             }
         });
@@ -111,6 +115,63 @@ class AccountController extends Controller
         return redirect()
             ->back()
             ->with('success', 'Account created successfully.');
+    }
+
+    // Update an existing teacher or parent account without changing its role.
+    public function update(Request $request, User $user)
+    {
+        abort_if($user->role === 'admin', 403);
+
+        $validated = $request->validate([
+            'full_name' => ['required', 'string', 'max:255'],
+            'email' => [
+                'required', 'email', 'max:255',
+                Rule::unique('users', 'email')->ignore($user->user_id, 'user_id'),
+                Rule::notIn(['smartkids.system@gmail.com']),
+            ],
+            'phone_number' => ['nullable', 'string', 'max:20'],
+            'status' => ['required', Rule::in(['active', 'inactive'])],
+            'qualification' => ['nullable', 'string', 'max:255'],
+            'address' => ['nullable', 'string', 'max:500'],
+            'relationship' => [Rule::requiredIf($user->role === 'parent'), Rule::in(['father', 'mother', 'guardian'])],
+        ]);
+
+        if ($user->role === 'parent' && !in_array($user->status, ['active', 'inactive'], true)) {
+            return back()->withErrors(['status' => 'Review the parent registration before editing the account.']);
+        }
+
+        DB::transaction(function () use ($user, $validated) {
+            $user->fill([
+                'full_name' => $validated['full_name'],
+                'email' => $validated['email'],
+                'phone_number' => $validated['phone_number'] ?? null,
+                'status' => $validated['status'],
+            ]);
+
+            if ($user->isDirty('email')) {
+                $user->email_verified_at = null;
+            }
+
+            $user->save();
+
+            if ($user->role === 'teacher' && $user->teacher) {
+                $user->teacher->update([
+                    'full_name' => $validated['full_name'],
+                    'qualification' => $validated['qualification'] ?? null,
+                    'address' => $validated['address'] ?? null,
+                    'status' => $validated['status'],
+                ]);
+            }
+
+            if ($user->role === 'parent' && $user->parent) {
+                $user->parent->update([
+                    'relationship' => $validated['relationship'],
+                    'address' => $validated['address'] ?? null,
+                ]);
+            }
+        });
+
+        return back()->with('success', 'Account updated successfully.');
     }
 
     // Link student to existing parent

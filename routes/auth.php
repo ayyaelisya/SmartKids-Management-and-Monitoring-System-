@@ -11,46 +11,47 @@ use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
 
+// The public site's Portal Login button must always open the login form.
+// A signed-in teacher or parent would otherwise be sent by the guest
+// middleware to Laravel's default /dashboard (an admin-only route).
+Route::get('login', [AuthenticatedSessionController::class, 'create'])
+    ->name('login');
+Route::post('login', [AuthenticatedSessionController::class, 'store']);
+
 Route::middleware('guest')->group(function () {
     Route::get('register', [RegisteredUserController::class, 'create'])
         ->name('register');
 
-        Route::get('verify-email-code', [VerifyEmailController::class, 'show'])
-    ->name('verification.code.notice');
+    Route::get('verify-email-code', [VerifyEmailController::class, 'show'])
+        ->name('verification.code.notice');
 
-Route::post('verify-email-code', [VerifyEmailController::class, 'verify'])
-    ->middleware('throttle:10,1')
-    ->name('verification.code.verify');
+    Route::post('verify-email-code', [VerifyEmailController::class, 'verify'])
+        ->middleware('throttle:10,1')
+        ->name('verification.code.verify');
 
-Route::post('verify-email-code/resend', [VerifyEmailController::class, 'resend'])
-    ->middleware('throttle:6,1')
-    ->name('verification.code.resend');
+    Route::post('verify-email-code/resend', [VerifyEmailController::class, 'resend'])
+        ->middleware('throttle:6,1')
+        ->name('verification.code.resend');
 
     Route::post('register', [RegisteredUserController::class, 'store']);
-
-    Route::get('login', [AuthenticatedSessionController::class, 'create'])
-        ->name('login');
-
-    Route::post('login', [AuthenticatedSessionController::class, 'store']);
-
-    Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
-        ->name('password.request');
-
-    Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])
-        ->name('password.email');
-
-    Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])
-        ->name('password.reset');
-
-    Route::post('reset-password', [NewPasswordController::class, 'store'])
-        ->name('password.store');
 });
+
+// Keep password recovery accessible even when a teacher or parent session exists.
+Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
+    ->name('password.request');
+
+Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])
+    ->name('password.email');
+
+Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])
+    ->name('password.reset');
+
+Route::post('reset-password', [NewPasswordController::class, 'store'])
+    ->name('password.store');
 
 Route::middleware('auth')->group(function () {
     Route::get('verify-email', EmailVerificationPromptController::class)
         ->name('verification.notice');
-
-
 
     Route::post('email/verification-notification', [EmailVerificationNotificationController::class, 'store'])
         ->middleware('throttle:6,1')

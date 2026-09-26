@@ -2,30 +2,38 @@
 
 namespace App\Http\Requests;
 
-use App\Models\User;
-use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class ProfileUpdateRequest extends FormRequest
 {
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, ValidationRule|array<mixed>|string>
-     */
     public function rules(): array
     {
-        return [
-            'name' => ['required', 'string', 'max:255'],
+        $rules = [
+            'full_name' => ['required', 'string', 'max:255'],
             'email' => [
                 'required',
                 'string',
                 'lowercase',
                 'email',
                 'max:255',
-                Rule::unique(User::class)->ignore($this->user()->id),
+                Rule::unique('users', 'email')->ignore($this->user()->user_id, 'user_id'),
+                Rule::when($this->user()->role !== 'admin',
+                    Rule::notIn(['smartkids.system@gmail.com'])),
             ],
+            'phone_number' => ['nullable', 'string', 'max:20'],
         ];
+
+        if ($this->user()->role === 'teacher') {
+            $rules['qualification'] = ['nullable', 'string', 'max:255'];
+            $rules['address'] = ['nullable', 'string', 'max:500'];
+        }
+
+        if ($this->user()->role === 'parent') {
+            $rules['relationship'] = ['required', Rule::in(['father', 'mother', 'guardian'])];
+            $rules['address'] = ['nullable', 'string', 'max:500'];
+        }
+
+        return $rules;
     }
 }

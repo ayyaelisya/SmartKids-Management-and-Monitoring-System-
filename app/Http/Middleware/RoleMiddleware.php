@@ -14,6 +14,10 @@ class RoleMiddleware
             return redirect()->route('login');
         }
 
+        if ($request->user()->status !== 'active') {
+            abort(403, 'This account is not active.');
+        }
+
         if (!in_array($request->user()->role, $roles)) {
             abort(403, 'Unauthorized access.');
         }

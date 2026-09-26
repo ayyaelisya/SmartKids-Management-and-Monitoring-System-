@@ -9,6 +9,7 @@ export default function StaffAccounts({ accounts = [], students = [] }) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
     const [selectedParent, setSelectedParent] = useState(null);
     const [selectedStudentId, setSelectedStudentId] = useState('');
@@ -43,6 +44,16 @@ export default function StaffAccounts({ accounts = [], students = [] }) {
         relationship: 'father',
         qualification: '',
         address: '',
+    });
+
+    const editForm = useForm({
+        full_name: '',
+        email: '',
+        phone_number: '',
+        status: 'active',
+        qualification: '',
+        address: '',
+        relationship: 'guardian',
     });
 
     // =========================
@@ -143,6 +154,38 @@ export default function StaffAccounts({ accounts = [], students = [] }) {
         setSelectedAccount(null);
     };
 
+    const openEditModal = (account) => {
+        setSelectedAccount(account);
+        editForm.setData({
+            full_name: account.full_name ?? '',
+            email: account.email ?? '',
+            phone_number: account.phone_number ?? '',
+            status: account.status === 'inactive' ? 'inactive' : 'active',
+            qualification: account.teacher?.qualification ?? '',
+            address: account.role === 'teacher'
+                ? account.teacher?.address ?? ''
+                : account.parent?.address ?? '',
+            relationship: account.parent?.relationship ?? 'guardian',
+        });
+        editForm.clearErrors();
+        setIsViewModalOpen(false);
+        setIsEditModalOpen(true);
+    };
+
+    const closeEditModal = () => {
+        setIsEditModalOpen(false);
+        setSelectedAccount(null);
+        editForm.clearErrors();
+    };
+
+    const submitEdit = (event) => {
+        event.preventDefault();
+        editForm.patch(`/staff-accounts/${selectedAccount.user_id}`, {
+            preserveScroll: true,
+            onSuccess: closeEditModal,
+        });
+    };
+
     // Approve parent and link selected child
     const handleApproveAndLink = () => {
         if (!selectedParent) {
@@ -235,7 +278,9 @@ export default function StaffAccounts({ accounts = [], students = [] }) {
         const handleKeyDown = (e) => {
             if (e.key !== 'Escape') return;
 
-            if (isApprovalModalOpen) {
+            if (isEditModalOpen) {
+                if (!editForm.processing) closeEditModal();
+            } else if (isApprovalModalOpen) {
                 closeApprovalModal();
             } else if (isViewModalOpen) {
                 closeViewModal();
@@ -246,7 +291,7 @@ export default function StaffAccounts({ accounts = [], students = [] }) {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isModalOpen, isApprovalModalOpen, isViewModalOpen, closeModal]);
+    }, [isModalOpen, isApprovalModalOpen, isViewModalOpen, isEditModalOpen, closeModal]);
 
     // =========================
     // FILTER ACCOUNTS
@@ -406,10 +451,10 @@ export default function StaffAccounts({ accounts = [], students = [] }) {
                                                             <span className="w-2 h-2 rounded-full bg-amber-500" />
                                                             Pending
                                                         </span>
-                                                    ) : status === 'rejected' ? (
+                                                    ) : status === 'rejected' || status === 'inactive' ? (
                                                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200">
                                                             <span className="w-2 h-2 rounded-full bg-rose-500" />
-                                                            Rejected
+                                                            {status === 'inactive' ? 'Inactive' : 'Rejected'}
                                                         </span>
                                                     ) : (
                                                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -428,13 +473,12 @@ export default function StaffAccounts({ accounts = [], students = [] }) {
                                                             Approve & Link
                                                         </button>
                                                     ) : (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => openViewModal(account)}
-                                                            className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer active:scale-95"
-                                                        >
-                                                            View
-                                                        </button>
+                                                        <div className="flex gap-2">
+                                                            <button type="button" onClick={() => openViewModal(account)} className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold">View</button>
+                                                            {account.role !== 'admin' && !['pending', 'rejected'].includes(status) && (
+                                                                <button type="button" onClick={() => openEditModal(account)} className="px-4 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold">Edit</button>
+                                                            )}
+                                                        </div>
                                                     )}
                                                 </td>
                                             </tr>
@@ -694,6 +738,55 @@ export default function StaffAccounts({ accounts = [], students = [] }) {
                                 </button>
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* VIEW ACCOUNT MODAL */}
+            {isEditModalOpen && selectedAccount && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={closeEditModal}>
+                    <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+                        <h2 className="text-xl font-bold text-slate-900">Edit {selectedAccount.role} account</h2>
+                        <p className="mt-1 text-xs text-slate-500">Role and linked children cannot be changed here.</p>
+                        <form onSubmit={submitEdit} className="mt-5 space-y-4">
+                            {[
+                                ['Full name', 'full_name', 'text'],
+                                ['Email', 'email', 'email'],
+                                ['Phone number', 'phone_number', 'tel'],
+                                ...(selectedAccount.role === 'teacher'
+                                    ? [['Qualification', 'qualification', 'text'], ['Address', 'address', 'text']]
+                                    : [['Address', 'address', 'text']]),
+                            ].map(([label, name, type]) => (
+                                <label key={name} className="block text-xs font-bold text-slate-700">
+                                    {label}
+                                    <input type={type} value={editForm.data[name]} onChange={(event) => editForm.setData(name, event.target.value)} className="mt-1 block w-full rounded-xl border-slate-300 text-sm" />
+                                    {editForm.errors[name] && <span className="mt-1 block text-red-600">{editForm.errors[name]}</span>}
+                                </label>
+                            ))}
+                            {selectedAccount.role === 'parent' && (
+                                <label className="block text-xs font-bold text-slate-700">
+                                    Relationship
+                                    <select value={editForm.data.relationship} onChange={(event) => editForm.setData('relationship', event.target.value)} className="mt-1 block w-full rounded-xl border-slate-300 text-sm">
+                                        <option value="father">Father</option>
+                                        <option value="mother">Mother</option>
+                                        <option value="guardian">Guardian</option>
+                                    </select>
+                                    {editForm.errors.relationship && <span className="mt-1 block text-red-600">{editForm.errors.relationship}</span>}
+                                </label>
+                            )}
+                            <label className="block text-xs font-bold text-slate-700">
+                                Status
+                                <select value={editForm.data.status} onChange={(event) => editForm.setData('status', event.target.value)} className="mt-1 block w-full rounded-xl border-slate-300 text-sm">
+                                    <option value="active">Active</option>
+                                    <option value="inactive">Inactive</option>
+                                </select>
+                                {editForm.errors.status && <span className="mt-1 block text-red-600">{editForm.errors.status}</span>}
+                            </label>
+                            <div className="flex justify-end gap-3 pt-3">
+                                <button type="button" onClick={closeEditModal} className="rounded-xl bg-slate-100 px-4 py-2 text-xs font-bold">Cancel</button>
+                                <button type="submit" disabled={editForm.processing} className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">Save changes</button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

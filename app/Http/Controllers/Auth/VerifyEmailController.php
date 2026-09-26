@@ -88,7 +88,7 @@ class VerifyEmailController extends Controller
 
             ParentsModel::create([
                 'user_id' => $user->user_id,
-                'relationship' => $pending['relationship'],
+                'relationship' => strtolower($pending['relationship']),
                 'address' => $pending['address'],
                 'child_name' => $pending['child_name'],
                 'child_ic' => $pending['child_ic'],

@@ -34,11 +34,8 @@ class AuthenticatedSessionController extends Controller
 
         $user = Auth::user();
 
-        // A parent must be approved before accessing the system.
-        if (
-            $user->role === 'parent' &&
-            $user->status !== 'active'
-        ) {
+        // Every inactive account is blocked; parents also need approval.
+        if ($user->status !== 'active') {
             $message = match ($user->status) {
                 'pending' =>
                     'Your account is pending admin approval.',

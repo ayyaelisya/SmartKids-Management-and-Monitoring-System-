@@ -11,6 +11,7 @@ import {
     LayoutDashboard,
     LogOut,
     MessageCircle,
+    UserRound,
 } from 'lucide-react';
 
 export default function SidebarParent({
@@ -27,6 +28,7 @@ export default function SidebarParent({
         authUser?.full_name || authUser?.name || 'Parent Account';
 
     const navItems = [
+        { id: 'profile', label: 'My Profile', href: '/profile', icon: UserRound },
         {
             id: 'dashboard',
             label: 'Dashboard',
@@ -186,7 +188,7 @@ export default function SidebarParent({
                     <div className="flex items-center justify-between gap-2">
                         <div className="flex min-w-0 items-center space-x-2.5">
                             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-400 text-sm font-black text-emerald-950 shadow-inner">
-                                {userInitial}
+                                {authUser?.profile_photo_path ? <img src={`/storage/${authUser.profile_photo_path}`} alt="Parent profile" className="h-full w-full rounded-xl object-cover" /> : userInitial}
                             </div>
 
                             {!isCollapsed && (

@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, usePage } from '@inertiajs/react';
 import {
     LayoutDashboard, School, CalendarCheck, FileText, Megaphone,
-    MessageCircle, LogOut, ChevronLeft, ChevronRight,
+    MessageCircle, LogOut, ChevronLeft, ChevronRight, UserRound,
 } from 'lucide-react';
 
 export default function SidebarTeacher({
@@ -27,6 +27,7 @@ export default function SidebarTeacher({
         { id: 'logs', label: 'Learning Logs', href: '/teacher/learning-log', icon: FileText },
         { id: 'messages', label: 'Messages', href: '/teacher/messages', icon: MessageCircle },
         { id: 'announcements', label: 'Announcements', href: '/teacher/announcements', icon: Megaphone },
+        { id: 'profile', label: 'My Profile', href: '/profile', icon: UserRound },
     ];
 
     return (
@@ -72,7 +73,7 @@ export default function SidebarTeacher({
                 <div className="shrink-0 border-t border-white/20 bg-black/10 p-3">
                     <div className="flex items-center justify-between gap-2">
                         <div className="flex min-w-0 items-center space-x-2.5">
-                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-[#7FAF8A] text-sm font-black">{userName.charAt(0).toUpperCase()}</div>
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/20 bg-[#7FAF8A] text-sm font-black">{user.profile_photo_path ? <img src={`/storage/${user.profile_photo_path}`} alt="Teacher profile" className="h-full w-full object-cover" /> : userName.charAt(0).toUpperCase()}</div>
                             {!isCollapsed && <div className="min-w-0"><p className="truncate text-xs font-bold">{userName}</p><p className="mt-0.5 truncate text-[10px] text-white/70">{user.email}</p></div>}
                         </div>
                         {!isCollapsed && (

@@ -531,9 +531,6 @@ export default function AttendanceManagement({
                                 Attendance Management
                             </h1>
 
-                            <span className="px-2.5 py-0.5 rounded-full bg-[#7FAF8A]/15 text-[#527A5D] font-black text-xs">
-                                Live
-                            </span>
                         </div>
 
                         <p className="text-xs text-[#68736B] font-medium mt-1">
@@ -596,7 +593,7 @@ export default function AttendanceManagement({
                         }`}
                     >
                         <List className="w-4 h-4" />
-                        Mark Manually
+                        Attendance Records
                     </button>
 
                     <button
@@ -610,7 +607,7 @@ export default function AttendanceManagement({
                         }`}
                     >
                         <PickupIcon className="w-4 h-4" />
-                        Pickup Records
+                        Late Pickup Records
                     </button>
                 </div>
 

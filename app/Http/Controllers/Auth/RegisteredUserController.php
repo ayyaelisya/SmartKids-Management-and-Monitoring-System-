@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rules;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -28,7 +29,10 @@ class RegisteredUserController extends Controller
     {
         $validated = $request->validate([
             'full_name'    => 'required|string|max:255',
-            'email'        => 'required|string|lowercase|email|max:255|unique:users,email',
+            'email'        => [
+                'required', 'string', 'lowercase', 'email', 'max:255',
+                'unique:users,email', Rule::notIn(['smartkids.system@gmail.com']),
+            ],
             'phone_number' => 'required|string|max:20',
             'relationship' => 'required|in:Father,Mother,Guardian',
             'address'      => 'required|string|max:500',
